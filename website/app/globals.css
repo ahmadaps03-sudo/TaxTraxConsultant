@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-urdu: "Noto Nastaliq Urdu", serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #ffffff;
+  color: #2d2d2d;
+  font-family: var(--font-body);
+  font-feature-settings: "tnum" 1, "lnum" 1; /* tabular numerals for tax figures */
+}
+
+[dir="rtl"] body {
+  font-family: var(--font-urdu);
+}
+
+h1, h2, h3, h4, .font-serif {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4 {
+  font-family: var(--font-urdu);
+  letter-spacing: 0;
+}
+
+::selection {
+  background: #ff0404;
+  color: #ffffff;
+}
+
+/* Ledger rule: a recurring structural device — a thin red margin line,
+   evoking the ruled margin of a tax form rather than a decorative accent. */
+.ledger-rule {
+  border-left: 2px solid #ff0404;
+  padding-left: 1.25rem;
+}
+[dir="rtl"] .ledger-rule {
+  border-left: none;
+  border-right: 2px solid #ff0404;
+  padding-left: 0;
+  padding-right: 1.25rem;
+}
+
+.card-flat {
+  background-color: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 4px 16px rgba(20, 20, 20, 0.05);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid #ff0404;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Simple fade-up used once, at page load hero only per design guidance */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-rise {
+  animation: rise 0.6s ease-out both;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.animate-float {
+  animation: float 3.2s ease-in-out infinite;
+}
+
+/* ---- Section graphics ---- */
+.bg-dots { background-image: radial-gradient(rgba(255,4,4,.16) 1.2px, transparent 1.2px); background-size: 22px 22px; }
+.bg-dots-light { background-image: radial-gradient(rgba(255,255,255,.10) 1.2px, transparent 1.2px); background-size: 22px 22px; }
+.bg-grid-fade { background-image: linear-gradient(rgba(45,45,45,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(45,45,45,.05) 1px, transparent 1px); background-size: 40px 40px; }
+.card-lift { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.card-lift:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(20,20,20,.10); border-color: #ffb3b3; }
+
+/* ---- Motion & polish ---- */
+html { scroll-behavior: smooth; }
+@keyframes tt-pop { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes tt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tt-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.animate-pop { animation: tt-pop .28s cubic-bezier(.2,.8,.2,1) both; }
+.animate-fade { animation: tt-fade .25s ease both; }
+.animate-float { animation: tt-float 5s ease-in-out infinite; }
+a, button { -webkit-tap-highlight-color: transparent; }
+button:active:not(:disabled), a.rounded-full:active { transform: scale(.98); }
+::selection { background: rgba(255, 4, 4, .18); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } html { scroll-behavior: auto; }  }
+
+/* Scroll-in effect: pure CSS, tied to scroll position, so content can never get stuck invisible.
+   Browsers without scroll-driven animations simply show everything immediately. */
+@keyframes tt-rise { from { opacity: 0; translate: 0 14px; } to { opacity: 1; translate: 0 0; } }
+@supports (animation-timeline: view()) {
+  main section h2, main section .card-flat, main section article, main section details {
+    animation: tt-rise linear both; animation-timeline: view(); animation-range: entry 0% entry 30%;
+  }
+}
+@media (prefers-reduced-motion: reduce) { main section h2, main section .card-flat, main section article, main section details { animation: none; } }
+
+/* Slightly smaller base size: the site looked zoomed-in on laptops with display scaling (1100 to 1400px wide) */
+html { font-size: 15px; }
+@media (min-width: 1024px) { html { font-size: clamp(13.5px, calc(9px + 0.31vw), 15px); } }
+@media (max-width: 640px) { html { font-size: 15.5px; } }
+html, body { max-width: 100%; overflow-x: clip; }
+h1, h2, h3, p, li, a, summary { overflow-wrap: break-word; }

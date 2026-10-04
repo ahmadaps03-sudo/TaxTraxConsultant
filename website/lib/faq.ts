@@ -1,0 +1,9 @@
+export const faqs = [
+  { q: "Who can use TaxTrax Consulting?", a: "Individuals, freelancers, online sellers, startups and established companies in Pakistan, the USA, the UK and the UAE. Our team covers income tax, sales tax, company formation and cross-border compliance." },
+  { q: "What is ATL status and why does it matter?", a: "The Active Taxpayer List (ATL) determines the withholding tax rate you pay on many transactions. Filers on the ATL typically pay much lower rates than non-filers. If you have dropped off the list, we can usually help restore your status within 24 to 48 hours once your return is filed and any surcharge is paid." },
+  { q: "Can non-residents form a US LLC with TaxTrax?", a: "Yes. We form LLCs in states such as Wyoming, Delaware and Florida, arrange a registered agent, obtain your EIN, and handle annual filings such as Form 5472 and the pro-forma 1120 for non-resident single-member LLCs." },
+  { q: "Do you help with UK company registration and HMRC?", a: "Yes. We handle Companies House incorporation with a London registered address, HMRC activation, UTR and VAT registration, plus the annual confirmation statement and CT600 corporate tax return." },
+  { q: "How does UAE corporate tax and VAT work?", a: "The UAE applies a 9% corporate tax with conditional 0% treatment for qualifying Freezone income, and VAT returns are filed quarterly. We help you choose between Freezone and Mainland, register with the Federal Tax Authority and file on time." },
+  { q: "Is my financial data safe?", a: "Documents are shared through our encrypted client portal with two-factor authentication, so you never need to email sensitive files such as tax returns or ID numbers." },
+  { q: "How do I book a consultation?", a: "Use the Book Consultation button, pick your service, answer a few short questions and choose a time. You will receive a calendar invite and reminders automatically." },
+];

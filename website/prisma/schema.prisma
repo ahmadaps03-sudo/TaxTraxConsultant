@@ -1,0 +1,202 @@
+// This schema is a REFERENCE for the backend phase — it is not yet connected.
+// Every shape in lib/data.ts was written to map 1:1 onto a model below, so
+// swapping mock data for `prisma.service.findMany()` etc. is mechanical.
+//
+// Recommended provider: Neon (serverless Postgres). Reasoning:
+// - Native Vercel integration (one-click env var wiring, connection pooling
+//   via PgBouncer built in) — avoids the "too many connections" problem
+//   serverless functions hit against plain Postgres.
+// - Branching: spin up a full copy of prod data for a preview deploy or a
+//   staging admin sandbox, at no extra cost on the free/pro tiers.
+// - If the client already has Supabase for something else (e.g. wants
+//   built-in auth or storage), Supabase Postgres is an equally valid choice —
+//   the schema below doesn't change either way.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  EDITOR
+  SUPPORT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(SUPPORT)
+  name         String
+  // TODO: twoFactorSecret String? — plug in TOTP here for the 2FA phase
+  createdAt    DateTime @default(now())
+}
+
+model Client {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  phone        String?
+  documents    Document[]
+  checklist    ChecklistItem[]
+  invoices     Invoice[]
+  bookings     Booking[]
+  createdAt    DateTime      @default(now())
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  fileUrl   String   // Vercel Blob / Cloudinary URL — see note in README
+  fileName  String
+  tag       String   // W-2, 1099, Expense Receipt, K-1, etc.
+  taxYear   Int
+  uploadedAt DateTime @default(now())
+}
+
+model ChecklistItem {
+  id        String   @id @default(cuid())
+  client    Client   @relation(fields: [clientId], references: [id])
+  clientId  String
+  label     String
+  status    String   // "Completed" | "Pending" | "Needs Action"
+  taxYear   Int
+}
+
+model Invoice {
+  id         String   @id @default(cuid())
+  client     Client   @relation(fields: [clientId], references: [id])
+  clientId   String
+  amountCents Int
+  currency   String   @default("PKR")
+  status     String   // "paid" | "due" | "overdue"
+  issuedAt   DateTime @default(now())
+  paidAt     DateTime?
+}
+
+model Service {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  category      String
+  flag          String
+  title         String
+  audience      String
+  deliverables  String[] // Postgres text[] via Prisma
+  ctaLabels     String[]
+  ctaHrefs      String[]
+  order         Int      @default(0)
+  published     Boolean  @default(true)
+}
+
+model Testimonial {
+  id       String  @id @default(cuid())
+  name     String
+  role     String
+  location String
+  service  String
+  quote    String
+  verified Boolean @default(false)
+  order    Int     @default(0)
+}
+
+model CaseStudy {
+  id        String   @id @default(cuid())
+  title     String
+  profile   String
+  challenge String
+  solution  String[]
+  result    String
+  order     Int      @default(0)
+}
+
+model TeamMember {
+  id           String @id @default(cuid())
+  name         String
+  title        String
+  credential   String
+  jurisdiction String
+  bio          String
+  photoUrl     String?
+  linkedinUrl  String?
+  order        Int    @default(0)
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  category  String
+  excerpt   String
+  content   String   // markdown or rich-text JSON from the editor
+  coverUrl  String?
+  author    String
+  status    String   @default("draft") // "draft" | "published"
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Video {
+  id         String @id @default(cuid())
+  title      String
+  category   String
+  youtubeId  String?
+  uploadUrl  String? // for direct uploads via Blob/Cloudinary instead of YouTube/Vimeo
+  order      Int    @default(0)
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  service   String?
+  message   String
+  status    String   @default("unread") // "unread" | "read" | "archived"
+  createdAt DateTime @default(now())
+}
+
+model Booking {
+  id           String    @id @default(cuid())
+  client       Client?   @relation(fields: [clientId], references: [id])
+  clientId     String?
+  name         String
+  email        String
+  phone        String
+  service      String
+  revenueRange String?
+  timeline     String?
+  date         DateTime
+  timeSlot     String
+  status       String    @default("confirmed") // "confirmed" | "cancelled" | "completed"
+  meetingUrl   String?   // Zoom/Meet link, set once calendar tool is chosen
+  createdAt    DateTime  @default(now())
+}
+
+// Flexible CMS content model for anything that shouldn't need a code change:
+// hero headline/subheadline, contact info, social links, trust stats, etc.
+model SiteSetting {
+  id    String @id @default(cuid())
+  key   String @unique // e.g. "hero.headline", "contact.phone", "stats.clients"
+  value String
+  lang  String @default("en") // "en" | "ur" — one row per language per key
+}
+
+// Lead-magnet captures from the calculator pages (name/email/WhatsApp
+// collected before unlocking a PDF report). Kept separate from Message so
+// tool-driven leads can be scored/segmented differently in the admin panel.
+model Lead {
+  id           String   @id @default(cuid())
+  name         String
+  email        String
+  whatsapp     String
+  sourceTool   String   // e.g. "salary-tax-calculator"
+  resultSummary String
+  createdAt    DateTime @default(now())
+}
