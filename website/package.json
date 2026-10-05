@@ -9,14 +9,28 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "supabase:start": "node scripts/supabase-local.mjs start",
+    "supabase:stop": "node scripts/supabase-local.mjs stop",
+    "supabase:status": "node scripts/supabase-local.mjs status",
+    "supabase:reset": "node scripts/supabase-local.mjs reset",
+    "supabase:env": "node scripts/supabase-local-env.mjs",
+    "test:supabase-foundation": "node --test scripts/supabase-local-env.test.mjs",
+    "auth:seed": "node scripts/seed-auth-dev.mjs",
+    "test:authz": "node --test scripts/client-profiles-authz.test.mjs",
+    "test:session": "node --test scripts/server-session.test.mjs",
+    "test:auth-handlers": "node --test scripts/auth-handlers.test.mjs",
+    "test:portal": "node --test scripts/portal-integration.test.mjs"
   },
   "dependencies": {
     "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "better-sqlite3": "^11.5.0",
-    "geoip-lite": "^1.4.10"
+    "geoip-lite": "^1.4.10",
+    "@supabase/supabase-js": "2.78.0",
+    "@supabase/ssr": "0.8.0",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "typescript": "5.5.4",
@@ -24,6 +38,13 @@
     "@types/node": "20.14.10",
     "tailwindcss": "3.4.7",
     "postcss": "8.5.28",
-    "autoprefixer": "10.4.19"
+    "autoprefixer": "10.4.19",
+    "supabase": "2.54.0",
+    "playwright": "1.61.1"
+  },
+  "overrides": {
+    "supabase": {
+      "tar": "7.5.22"
+    }
   }
 }

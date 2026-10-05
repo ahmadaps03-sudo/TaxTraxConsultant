@@ -1,5 +1,22 @@
 # TaxTrax Consulting — Frontend
 
+## Local Supabase foundation — checkpoints 1–2
+
+Supabase is the approved Client Portal backend direction. The reproducible local
+stack, compatible pinned tooling, safe environment helper, and setup instructions
+are in [docs/local-supabase.md](docs/local-supabase.md). Start with `npm ci`,
+`npm run supabase:start`, and `npm run supabase:env` using the existing `.nvmrc`.
+Checkpoint 3 adds [client profiles, RLS and synthetic local fixtures](docs/client-profile-authorization.md).
+Checkpoint 4 adds [server session integration](docs/server-session-integration.md),
+including portal-only refresh middleware and a server authorization helper.
+Checkpoint 5 adds [backend login/logout handlers](docs/auth-handlers.md).
+Checkpoint 6 connects the existing portal UI to the server authentication boundary;
+see [portal integration and browser tests](docs/portal-auth-integration.md).
+Login/logout is functional for synthetic local accounts. Other dashboard data
+and controls remain mock/unimplemented; do not introduce sensitive client data.
+Existing SQLite/filesystem features remain unchanged; the older backend-phase
+suggestions later in this README are historical, not the current architecture decision.
+
 Full frontend for TaxTrax Consulting, built to the attached `Website_Format.pdf` spec, in your
 black/crimson brand identity instead of the mockup's navy/gold. Contact, booking and calculator-lead forms now post to `/api/*` (JSON-file store in
 `lib/store.ts`) and are managed from the separate desktop app in `../admin-app`. See `../README.md`
@@ -56,7 +73,7 @@ app/
   about/page.tsx           Team credentials
   contact/page.tsx         Contact form
   book-consultation/page.tsx   4-step booking flow
-  portal/page.tsx          Client Portal — login + mocked dashboard
+  portal/page.tsx          Client Portal — server-authorized login/dashboard boundary
   admin/page.tsx           Admin panel — login + mocked dashboard
 components/                Navbar, Footer, ServiceCard, TestimonialCarousel,
                             LeadCaptureModal, ToolShell, LanguageToggle
