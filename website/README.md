@@ -1,5 +1,14 @@
 # TaxTrax Consulting — Frontend
 
+## Shared Dev without Docker
+
+For normal Client Portal testing on `dev`, follow
+[shared Development setup](docs/shared-dev.md): install with the existing Node
+20 runtime, configure the unprivileged Dev URL/key and local `AUTH_ORIGIN`, then
+run `npm run dev`. Obtain the synthetic login privately from Helio. No Docker,
+remote migration, admin credential or password-recovery implementation is needed.
+The Docker-local workflow below remains optional and separate.
+
 ## Local Supabase foundation — checkpoints 1–2
 
 Supabase is the approved Client Portal backend direction. The reproducible local

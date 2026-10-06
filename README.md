@@ -20,6 +20,11 @@ website, and the desktop app reads them through `/api/admin/*`, protected by a s
 - Node.js 18.18 to 20.x for the website (see `website/.nvmrc`); Node 18+ for the admin app.
 - Keep the folder OUT of OneDrive/Dropbox-synced locations (e.g. use `C:\dev\taxtrax`).
 
+## Client Portal on shared Development (no Docker)
+Follow [website/docs/shared-dev.md](website/docs/shared-dev.md) for Windows setup,
+the unprivileged Dev environment values and the privately shared synthetic login.
+Existing SQLite/admin features remain local and separate; Production is not a test target.
+
 ## What changed in this version (read first)
 - **Database:** the website now stores everything in a real SQLite database (`website/data/taxtrax.db`)
   instead of a JSON file. Run `npm install` again inside `website/` (it adds `better-sqlite3`). Existing
