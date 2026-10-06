@@ -18,10 +18,26 @@
   "build": {
     "appId": "com.taxtrax.admin",
     "productName": "TaxTrax Admin",
-    "files": ["src/**/*", "package.json"],
-    "directories": { "output": "dist" },
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg", "category": "public.app-category.business" },
-    "linux": { "target": "AppImage", "category": "Office" }
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
   }
 }
