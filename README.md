@@ -9,6 +9,13 @@ taxtrax/
 The two are fully separate projects. They only meet over HTTP: visitors' forms are saved by the
 website, and the desktop app reads them through `/api/admin/*`, protected by a secret key.
 
+## Git workflow
+- `main` is the stable, integration-approved branch; normal development should not happen directly on it.
+- Ongoing development happens on `dev`.
+- Start new work from the current, up-to-date `dev` branch.
+- Integrate completed work back into `dev`.
+- Merge `dev` into `main` only when the integrated application is tested, stable and approved.
+
 ## Requirements
 - Node.js 18.18 to 20.x for the website (see `website/.nvmrc`); Node 18+ for the admin app.
 - Keep the folder OUT of OneDrive/Dropbox-synced locations (e.g. use `C:\dev\taxtrax`).
