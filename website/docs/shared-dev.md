@@ -1,10 +1,13 @@
-# Shared Development login/logout (no Docker)
+# Shared Development setup (no Docker)
 
 Use only TaxTrax DEVELOPMENT (`dbcakdqthnamgjfkkxzn`). Production is not a test
 target. Existing authentication, profile RLS and provider-session checks are
 unchanged. SQLite remains local for unrelated website/admin features. Password
 recovery, MFA, Remember me and other portal functions remain deferred; this is
 not a production deployment or compliance certification.
+
+This guide covers environment setup and starting the app. For feature-by-feature
+manual QA, use the canonical [backend testing guide](TESTING.md).
 
 ## Ahmed: Windows PowerShell
 
@@ -42,9 +45,8 @@ synthetic shared-Dev email/password from Helio through a password manager/privat
 channel. Do not use the documented Docker-local fixture password: the shared
 account has a separately generated random password, not committed to Git.
 
-Expected: anonymous visits show login, correct credentials display **Synthetic
-Shared Dev Client**, refreshing preserves server-authorized access, and either
-desktop/mobile logout returns to login. Wrong credentials give generic feedback.
+Follow the [Client Portal login/logout manual checks](TESTING.md#client-portal-loginlogout)
+for expected behaviour and PASS/FAIL criteria.
 If port 3000 is occupied, stop your own earlier dev server deliberately; do not
 silently use another port without updating `AUTH_ORIGIN`. Restart after changing
 environment values. Other dashboard data/controls remain mock content.
