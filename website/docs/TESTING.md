@@ -24,7 +24,7 @@ Link to existing setup instructions rather than duplicating them here.
   in the same browser can share a session.
 
 The form still says “Email or username”, but authentication is **email-only**.
-Remember me, activation, password recovery and MFA are not implemented for this
+Remember me, activation and MFA are not implemented for this
 milestone. Other dashboard content is mock data, not functionality under test.
 
 ### Manual checks
@@ -65,6 +65,42 @@ Failures: test ID, steps, expected vs actual, screenshot/error output
 Unexpected behaviour:
 ```
 
+## Client Portal password recovery
+
+### Prerequisites
+
+Complete [shared Dev setup](shared-dev.md) and start the app with `npm run dev`.
+Obtain the **deliverable synthetic Dev account**, its current password and inbox
+access privately from Hélio. Do not use the original `.invalid` fixture. Use Dev
+only, and update the privately shared test password after a successful reset.
+No Docker, local Supabase or AI tool is needed.
+
+The recovery account is already confirmed and has an active **Synthetic Recovery
+Client** profile. First log into a normal browser window with its current
+password and leave it signed in, so R6 can verify revocation. Perform R1–R6 in a
+separate fresh InPrivate/Incognito window. The initial provisioning password is
+stale after a reset; obtain the latest privately shared password for repeat QA.
+
+### Manual checks
+
+| ID | Exact action | Expected result / PASS criteria |
+| --- | --- | --- |
+| R1 | Open `http://localhost:3000/portal` logged out and click **Forgot password?**. | The minimal email-only recovery form opens. The existing login layout remains unchanged. |
+| R2 | Submit the deliverable synthetic account email using **Send recovery email**; check its inbox/spam folder. | Generic “If an account can receive…” feedback appears. A recovery email arrives through the configured Dev EmailJS recovery template, with the correct recipient and local recovery link. No password/session token is in the email. The generic feedback alone is not proof of delivery. |
+| R3 | Open that email link in a fresh InPrivate/Incognito browser, with the app still running. | The URL becomes `/portal/reset-password` with no proof in the address bar. A **Continue** button appears. Opening/reloading the link before Continue does not consume it. |
+| R4 | Click **Continue**, then open `/portal` in another tab of this private window. | The new-password form appears, but `/portal` still shows login: verification alone does not grant portal access. Refreshing the reset page preserves the form. |
+| R5 | Try a short/common password or mismatched confirmation, then correct it. | Invalid input is rejected; no successful reset occurs. The existing link/session still allows a corrected password following the displayed 10–128-character rules. |
+| R6 | Set a new synthetic password following the rules, confirm it exactly, and click **Update password**. Refresh `/portal` in the normal window left signed in during prerequisites. Then test new and old passwords and update the privately shared credential. | Reset returns to login. The new password works and displays **Welcome, Synthetic Recovery Client**; the old password fails. Other previously authenticated sessions for this account show login after refresh. A different account's sessions are unaffected. |
+| R7 | Open the used email link again and click Continue. Try a malformed link; separately request a new link and leave it unused beyond the current Dev one-hour expiry before trying Continue. | Invalid/used/expired proof is rejected with generic invalid/expired feedback; no authorized password form or portal is granted. **Request a new link** remains available. Never share links in reports. |
+| R8 | Submit a valid-looking unknown email (`recovery-unknown@taxtrax.example.invalid`), and retry the known email within 60 seconds. | Both show the same generic request feedback, without account-existence or delivery details. A cooldown may suppress another email. |
+| R9 | After resetting, log in and use desktop/mobile logout as in the login/logout section. | Existing login/logout still works; normal logout affects only its current session. |
+
+Report R1–R9 PASS/FAIL, Dev commit, browser/version and sanitized screenshots/error
+output for failures. Record actual EmailJS arrival and unexpected behaviour.
+Never include passwords, recovery URLs, cookies or tokens. For cross-device
+testing, `localhost` must resolve to a running Dev app on the opening device;
+do not replace it with an unapproved host.
+
 ## Safe automated checks
 
 In a second terminal, from `website`, run:
@@ -72,13 +108,19 @@ In a second terminal, from `website`, run:
 ```bash
 npm run test:supabase-foundation
 npm run test:supabase-shared-dev
+npm run test:recovery
 npx tsc --noEmit
 git diff --check
 ```
 
-PASS means both test suites finish with no failures, TypeScript reports no
+PASS means all three test suites finish with no failures, TypeScript reports no
 errors, and `git diff --check` reports no whitespace errors. These commands do
 not reset or seed the shared database and do not replace the manual checks.
+
+Hélio can also run `npm run test:recovery:shared-dev` with authenticated, Dev-linked
+CLI access and Playwright Chromium. It tests real proof/password changes, browser
+isolation, RLS and login/logout using only uniquely named disposable fixtures.
+It does not send email or reset the database and is not required for Ahmed's QA.
 
 The older `test:portal`, `test:auth-handlers`, `test:session` and `test:authz`
 suites remain tied to the previous local Docker/Supabase test infrastructure.

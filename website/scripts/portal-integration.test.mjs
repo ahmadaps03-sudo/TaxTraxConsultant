@@ -283,7 +283,7 @@ test("Remember me is disabled and even forced DOM changes do not alter the crede
   assert.equal(submission.customHeader, "1");
 });
 
-test("login layout, password toggle and deferred activation/recovery controls remain intact", async () => {
+test("login layout, password toggle, recovery link and deferred activation remain intact", async () => {
   await page.goto(`${origin}/portal`);
   await loginScreen();
   const brand = page.getByText("Your financial data is fully encrypted and secure.", { exact: true });
@@ -297,7 +297,10 @@ test("login layout, password toggle and deferred activation/recovery controls re
   await page.getByRole("button", { name: "Hide", exact: true }).click();
   assert.equal(await page.locator('input[name="password"]').getAttribute("type"), "password");
   const before = submissions.length;
-  for (const name of ["Forgot password?", "First-time user? Activate your account"]) {
+  const recovery = page.getByRole("link", { name: "Forgot password?", exact: true });
+  assert.equal(await recovery.getAttribute("href"), "/portal/forgot-password");
+  assert.equal(await recovery.getAttribute("aria-disabled"), null);
+  for (const name of ["First-time user? Activate your account"]) {
     const link = page.getByRole("link", { name, exact: true });
     assert.equal(await link.getAttribute("aria-disabled"), "true");
     await link.click({ force: true });

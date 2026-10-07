@@ -6,7 +6,8 @@ For normal Client Portal testing on `dev`, follow
 [shared Development setup](docs/shared-dev.md): install with the existing Node
 20 runtime, configure the unprivileged Dev URL/key and local `AUTH_ORIGIN`, then
 run `npm run dev`. Obtain the synthetic login privately from Helio. No Docker,
-remote migration, admin credential or password-recovery implementation is needed.
+remote migration or admin credential is needed. Password recovery uses the signed
+Dev EmailJS hook; see the setup guide and `docs/TESTING.md` for manual QA.
 The Docker-local workflow below remains optional and separate.
 
 ## Local Supabase foundation — checkpoints 1–2

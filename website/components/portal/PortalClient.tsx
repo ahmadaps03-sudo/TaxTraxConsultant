@@ -118,7 +118,7 @@ export function PortalLogin({ logoutUnconfirmed = false }: { logoutUnconfirmed?:
             <label className="flex items-center gap-2" title="Remember me is not available yet.">
               <input type="checkbox" disabled aria-label="Remember me (not available yet)" className="accent-signal" /> Remember me
             </label>
-            <a href="#" aria-disabled="true" title="Password recovery is not available yet." onClick={(event) => event.preventDefault()} className="text-signal hover:text-ember">Forgot password?</a>
+            <a href="/portal/forgot-password" className="text-signal hover:text-ember">Forgot password?</a>
           </div>
           {error && <p role="alert" className="text-sm text-signal">{error}</p>}
           <button type="submit" disabled={pending} className="flex w-full items-center justify-center gap-2 bg-signal px-4 py-2.5 text-sm font-medium text-ink hover:bg-ember transition-colors focus-ring">
