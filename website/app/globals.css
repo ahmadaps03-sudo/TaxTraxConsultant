@@ -125,3 +125,44 @@ html { font-size: 15px; }
 @media (max-width: 640px) { html { font-size: 15.5px; } }
 html, body { max-width: 100%; overflow-x: clip; }
 h1, h2, h3, p, li, a, summary { overflow-wrap: break-word; }
+
+/* ───────────────────────── Client Portal auth animations (login / create account / sign-out) ─────────────────────────
+   Paste at the very END of app/globals.css. All names are prefixed "ap-" so nothing existing is touched.
+   The global prefers-reduced-motion rule already in this file automatically disables these for users who ask for it. */
+@keyframes ap-rise      { from { opacity: 0; translate: 0 16px; } to { opacity: 1; translate: 0 0; } }
+@keyframes ap-fade      { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ap-in-right  { from { opacity: 0; translate: 32px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes ap-in-left   { from { opacity: 0; translate: -32px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes ap-pop       { 0% { opacity: 0; scale: .5; } 60% { opacity: 1; scale: 1.12; } 100% { opacity: 1; scale: 1; } }
+@keyframes ap-spin      { to { rotate: 360deg; } }
+@keyframes ap-draw      { to { stroke-dashoffset: 0; } }
+@keyframes ap-ring      { 0% { scale: .7; opacity: .45; } 100% { scale: 2.1; opacity: 0; } }
+@keyframes ap-float     { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+@keyframes ap-shimmer   { from { translate: -130% 0; } to { translate: 130% 0; } }
+@keyframes ap-shake     { 10%, 90% { translate: -1px 0; } 20%, 80% { translate: 3px 0; } 30%, 50%, 70% { translate: -6px 0; } 40%, 60% { translate: 6px 0; } }
+
+.ap-rise     { animation: ap-rise .6s cubic-bezier(.2, .8, .2, 1) both; }
+.ap-fade     { animation: ap-fade .35s ease-out both; }
+.ap-in-right { animation: ap-in-right .45s cubic-bezier(.2, .8, .2, 1) both; }
+.ap-in-left  { animation: ap-in-left .45s cubic-bezier(.2, .8, .2, 1) both; }
+.ap-pop      { animation: ap-pop .45s cubic-bezier(.3, 1.4, .5, 1) both; }
+.ap-spin     { animation: ap-spin .8s linear infinite; }
+.ap-float    { animation: ap-float 5s ease-in-out infinite; }
+.ap-shake    { animation: ap-shake .5s cubic-bezier(.36, .07, .19, .97) both; }
+.ap-ring     { animation: ap-ring 2.8s ease-out infinite; }
+
+/* Animated check-mark: any <path class="ap-check"> draws itself in */
+.ap-check    { stroke-dasharray: 30; stroke-dashoffset: 30; animation: ap-draw .45s .1s ease-out forwards; }
+
+/* "Remember me" box: the tick draws in when the hidden checkbox is checked */
+.ap-cb + span path { stroke-dasharray: 30; stroke-dashoffset: 30; transition: stroke-dashoffset .3s ease-out; }
+.ap-cb:checked + span path { stroke-dashoffset: 0; }
+
+/* Primary button: soft light sweep on hover */
+.ap-btn { position: relative; overflow: hidden; isolation: isolate; }
+.ap-btn::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; translate: -130% 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .28) 50%, transparent 70%);
+}
+.ap-btn:not(:disabled):hover::after { animation: ap-shimmer .9s ease-out; }
+.ap-btn:not(:disabled):active { scale: .985; }
