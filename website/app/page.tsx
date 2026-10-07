@@ -223,7 +223,7 @@ export default function Home() {
       <section id="services" className="border-b border-line">
         <div className="mx-auto max-w-[1200px] px-5 py-14 sm:py-20">
           <SectionHeading title="Our Services" sub="Clear starting prices for our most requested services in Pakistan, the USA and the UK." />
-          <div className="mt-12 grid gap-7 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid gap-7 md:grid-cols-2 lg:grid-cols-3 lg:gap-[clamp(1.1rem,2vw,1.75rem)]">
             {FEATURED_SERVICES.map((slug, i) => {
               const svc = services.find((x) => x.slug === slug);
               return svc ? <FeaturedServiceCard key={slug} service={svc} index={i} /> : null;
@@ -243,7 +243,7 @@ export default function Home() {
         <div className="bg-dots absolute inset-0 opacity-60" aria-hidden />
         <div className="relative mx-auto max-w-[1200px] px-5 py-14 sm:py-20">
           <SectionHeading title="Our Pricing Plans" sub="Transparent starting prices. Final quote depends on your case, confirmed before we begin." />
-          <div className="mt-10 grid items-stretch gap-7 lg:grid-cols-3">
+          <div className="mt-10 grid items-stretch gap-7 lg:grid-cols-3 lg:gap-[clamp(1.1rem,2vw,1.75rem)]">
             {PLANS.map((plan) => (
               <div key={plan.name} className={`group relative flex flex-col rounded-3xl p-6 transition-all duration-300 hover:-translate-y-2 ${plan.featured ? "bg-graphite text-white shadow-2xl shadow-signal/25 lg:-my-4 lg:py-12" : "card-flat hover:border-signal/40 hover:shadow-2xl hover:shadow-signal/10"}`}>
                 {plan.featured && <span className="absolute -top-3 left-8 rounded-full bg-signal px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-signal/40">Most Popular</span>}
@@ -276,22 +276,23 @@ export default function Home() {
       <section className="border-b border-line bg-charcoal">
         <div className="mx-auto max-w-[1200px] px-5 py-14 sm:py-20">
           <SectionHeading title="Our Case Studies" sub="Problem, solution, measurable result." />
-          <div className="mt-12 grid gap-7 lg:grid-cols-3">
+          <div className="mt-12 grid items-stretch gap-7 lg:grid-cols-3 lg:gap-[clamp(1.1rem,2vw,1.75rem)]">
             {caseStudies.map((c, i) => (
-              <div key={c.title} className="card-flat card-lift overflow-hidden">
-                <div className="relative bg-graphite px-6 py-8 text-white">
+              <div key={c.title} className="card-flat card-lift flex h-full flex-col overflow-hidden">
+                <div className="relative bg-graphite px-[clamp(1.1rem,1.7vw,1.5rem)] py-8 text-white lg:min-h-[8.5rem]">
                   <div className="bg-dots-light absolute inset-0" aria-hidden />
-                  <p className="relative font-serif text-4xl text-signal">{CASE_METRICS[i]?.big}</p>
+                  <p className="relative font-serif text-[clamp(1.9rem,2.7vw,2.25rem)] leading-tight text-signal">{CASE_METRICS[i]?.big}</p>
                   <p className="relative mt-1 text-sm text-white/70">{CASE_METRICS[i]?.label}</p>
                 </div>
-                <div className="p-6">
+                <div className="flex flex-1 flex-col p-[clamp(1.1rem,1.7vw,1.5rem)]">
                   <h3 className="font-serif text-base text-paper">{c.title}</h3>
                   <p className="mt-1 text-xs text-smoke">{c.profile}</p>
                   <p className="mt-4 rounded-lg bg-cream p-3 text-sm text-paper/80"><span className="font-medium text-signal">Challenge · </span>{c.challenge}</p>
                   <ul className="mt-4 space-y-2 text-sm text-paper/80">
                     {c.solution.map((step) => <li key={step} className="flex gap-2"><CheckIcon /> {step}</li>)}
                   </ul>
-                  <p className="mt-5 border-t border-line pt-4 text-sm font-medium text-ok">{c.result}</p>
+                  <div className="h-5" aria-hidden />
+                  <p className="mt-auto border-t border-line pt-4 text-sm font-medium text-ok">{c.result}</p>
                 </div>
               </div>
             ))}

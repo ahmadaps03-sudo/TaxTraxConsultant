@@ -48,19 +48,19 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-cream/95 backdrop-blur">
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2.5">
-        <Link href="/" className="flex items-center gap-2 shrink-0 whitespace-nowrap font-serif text-lg font-semibold text-graphite">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-[clamp(0.5rem,1vw,1rem)] px-[clamp(1rem,1.6vw,1.75rem)] py-2.5">
+        <Link href="/" className="flex items-center gap-2 shrink-0 whitespace-nowrap font-serif text-[clamp(1rem,1.25vw,1.125rem)] font-semibold text-graphite">
           <img src="/logo/taxtrax-mark.png" alt="TaxTrax Consulting" className="h-9 w-9 object-contain" />
           TaxTraxConsulting
         </Link>
 
-        <nav className="hidden min-w-0 items-center gap-0.5 min-[1140px]:flex">
-          <Link href="/" className="px-2.5 py-2 whitespace-nowrap text-[0.92rem] text-graphite/85 hover:text-crimson transition-colors focus-ring">
+        <nav className="hidden min-w-0 flex-nowrap items-center gap-0.5 min-[1180px]:flex">
+          <Link href="/" className="px-[clamp(0.4rem,0.65vw,0.625rem)] py-2 whitespace-nowrap text-[clamp(0.84rem,1vw,0.92rem)] text-graphite/85 hover:text-crimson transition-colors focus-ring">
             Home
           </Link>
           {dropdowns.map((d) => (
             <div key={d.label} className="group relative">
-              <button className="flex items-center gap-1 whitespace-nowrap px-2.5 py-2 whitespace-nowrap text-[0.92rem] text-graphite/85 hover:text-crimson transition-colors focus-ring">
+              <button className="flex items-center gap-1 whitespace-nowrap px-[clamp(0.4rem,0.65vw,0.625rem)] py-2 whitespace-nowrap text-[clamp(0.84rem,1vw,0.92rem)] text-graphite/85 hover:text-crimson transition-colors focus-ring">
                 {d.label} <Chevron />
               </button>
               <div className="invisible absolute left-0 top-full w-64 border border-hairline bg-cream opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100">
@@ -82,8 +82,8 @@ export default function Navbar() {
             </div>
           ))}
           <div className="group relative">
-            <button className="flex items-center gap-1.5 px-2.5 py-2 whitespace-nowrap text-[0.92rem] text-graphite/85 hover:text-crimson transition-colors focus-ring">
-              <Icon name="globe" size={15} /> <span className="min-[1280px]:hidden">Global</span><span className="hidden min-[1280px]:inline">Global Services</span> <Chevron />
+            <button className="flex items-center gap-1.5 whitespace-nowrap px-[clamp(0.4rem,0.65vw,0.625rem)] py-2 whitespace-nowrap text-[clamp(0.84rem,1vw,0.92rem)] text-graphite/85 hover:text-crimson transition-colors focus-ring">
+              <Icon name="globe" size={15} /> <span className="min-[1440px]:hidden">Global</span><span className="hidden min-[1440px]:inline">Global Services</span> <Chevron />
             </button>
             <div className="invisible absolute right-0 top-full w-64 border border-hairline bg-cream opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100">
               <ul className="py-2">
@@ -101,27 +101,27 @@ export default function Navbar() {
               </Link>
             </div>
           </div>
-          <Link href="/contact" className="px-2.5 py-2 whitespace-nowrap text-[0.92rem] text-graphite/85 hover:text-crimson transition-colors focus-ring">Contact Us</Link>
+          <Link href="/contact" className="px-[clamp(0.4rem,0.65vw,0.625rem)] py-2 whitespace-nowrap text-[clamp(0.84rem,1vw,0.92rem)] text-graphite/85 hover:text-crimson transition-colors focus-ring">Contact Us</Link>
         </nav>
 
-        <div className="hidden shrink-0 items-center gap-2 min-[1140px]:flex">
+        <div className="hidden shrink-0 items-center gap-2 min-[1180px]:flex">
           <LanguageToggle />
           <Link
             href="/portal"
-            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline px-3.5 py-1.5 text-[0.92rem] text-graphite hover:border-crimson hover:text-crimson transition-colors focus-ring"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline px-[clamp(0.7rem,1vw,0.875rem)] py-1.5 text-[clamp(0.84rem,1vw,0.92rem)] text-graphite hover:border-crimson hover:text-crimson transition-colors focus-ring"
           >
-            <Icon name="lock" size={14} /> <span className="min-[1280px]:hidden">Portal</span><span className="hidden min-[1280px]:inline">Client Portal</span>
+            <Icon name="lock" size={14} /> <span className="min-[1440px]:hidden">Portal</span><span className="hidden min-[1440px]:inline">Client Portal</span>
           </Link>
           <Link
             href="/book-consultation"
-            className="shrink-0 whitespace-nowrap rounded-full bg-signal px-4 py-2 text-[0.92rem] font-medium text-white hover:bg-ember transition-colors focus-ring"
+            className="shrink-0 whitespace-nowrap rounded-full bg-signal px-[clamp(0.8rem,1.1vw,1rem)] py-2 text-[clamp(0.84rem,1vw,0.92rem)] font-medium text-white hover:bg-ember transition-colors focus-ring"
           >
-            <span className="min-[1280px]:hidden">Book Now</span><span className="hidden min-[1280px]:inline">Book a Consultation</span>
+            <span className="min-[1440px]:hidden">Book Now</span><span className="hidden min-[1440px]:inline">Book a Consultation</span>
           </Link>
         </div>
 
         <button
-          className="p-2 text-graphite min-[1140px]:hidden focus-ring"
+          className="p-2 text-graphite min-[1180px]:hidden focus-ring"
           aria-label="Toggle menu"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
@@ -131,7 +131,7 @@ export default function Navbar() {
       </div>
 
       {open && (
-        <div className="border-t border-hairline bg-cream px-5 py-4 min-[1140px]:hidden">
+        <div className="border-t border-hairline bg-cream px-5 py-4 min-[1180px]:hidden">
           <nav className="flex flex-col gap-4">
             <Link href="/" onClick={() => setOpen(false)} className="text-sm text-graphite/85">
               Home
