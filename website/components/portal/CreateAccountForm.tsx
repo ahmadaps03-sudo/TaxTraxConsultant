@@ -5,12 +5,8 @@ import { useRef, useState } from "react";
 /**
  * Create-account UI for the Client Portal.
  *
- * FRONTEND ONLY - it does not touch the Supabase auth backend. The portal only lets in clients whose
- * `client_profiles.status` is "active" (set by the TaxTrax team), so this form sends an *account request*
- * through the EXISTING public endpoint POST /api/contact (same one the Contact page uses). No password is
- * collected or transmitted here.
- *
- * If you later add a real sign-up API, replace ONLY `sendAccountRequest()` below.
+ * Sends a pending access request, not an Auth signup, approval or invitation.
+ * No password is collected or transmitted here.
  */
 
 type Key = "name" | "email" | "phone" | "agree";
@@ -32,19 +28,19 @@ function validate(v: Values): Errors {
 }
 
 async function sendAccountRequest(v: Values, honeypot: string): Promise<{ ok: boolean; status: number; fields?: Errors; error?: string }> {
-  const response = await fetch("/api/contact", {
+  const response = await fetch("/api/portal/access-requests", {
     method: "POST",
     mode: "same-origin",
     credentials: "same-origin",
     cache: "no-store",
-    headers: { "Content-Type": "application/json" },
+    redirect: "error",
+    headers: { "Content-Type": "application/json", "X-TaxTrax-Auth": "1" },
     body: JSON.stringify({
       name: v.name.trim(),
       email: v.email.trim(),
       phone: v.phone.trim(),
-      subject: "Client Portal account request",
-      service: "Client Portal",
-      message: `Please create a Client Portal account for me.\nCompany: ${v.company.trim() || "-"}\n(Sent from the Create account form on /portal)`,
+      company: v.company.trim(),
+      contact_consent: v.agree,
       website: honeypot, // honeypot field, must stay empty for real people
     }),
   });
@@ -100,7 +96,7 @@ export function CreateAccountForm({ onLogin }: { onLogin: () => void }) {
       if (result.ok) { setDone(true); return; }
       if (result.fields) {
         const mapped: Errors = {};
-        for (const k of ["name", "email", "phone"] as const) if (result.fields[k]) mapped[k] = result.fields[k];
+        for (const k of ["name", "email", "phone", "agree"] as const) if (result.fields[k]) mapped[k] = result.fields[k];
         setServerErrors(mapped);
         if (mapped.name || mapped.email) { setDir("back"); setStep(1); }
       }

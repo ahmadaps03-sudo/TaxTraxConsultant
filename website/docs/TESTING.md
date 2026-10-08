@@ -129,7 +129,7 @@ Supabase CLI or privileged credentials are needed by Ahmed.
 
 | ID | Exact action | Expected result / PASS criteria |
 | --- | --- | --- |
-| A1 | Open `/portal` while logged out. | Ahmed's login/account-request UI remains, with non-clickable first-time guidance to use the invitation email. The existing Create account tab submits a contact request, not a Supabase signup, approval or invitation. No public Auth signup or invitation resend is introduced. |
+| A1 | Open `/portal` while logged out. | Ahmed's login/account-request UI remains, with non-clickable first-time guidance to use the invitation email. Create account submits a pending access request, not a Supabase signup, approval or invitation. No public Auth signup or invitation resend is introduced. |
 | A2 | Check the new synthetic inbox/spam folder after Hélio issues the invitation. | A separate EmailJS invitation template arrives for the correct recipient, linking to local account setup. No password or session token is in the email. |
 | A3 | Before verifying any invitation, ask Hélio to explicitly resend. Use the newest email for the remaining checks; try the earlier link in a separate fresh private session and click Continue. | Resend does not change profile approval. The earlier replaced proof fails with generic invalid/expired feedback; no first-password form is granted. Respect provider email cooldowns when retrying. |
 | A4 | Open the newest invitation in the fresh private window. Reload/open it again before Continue. | The URL becomes `/portal/activate` with no proof in the address bar. Continue appears; GET/reload does not consume the proof. |
@@ -145,6 +145,34 @@ Email arrival and owner provisioning are manual prerequisites, not implied by
 passing the offline suite. Run the existing login/logout and recovery sections
 as regression checks when testing the newly deployed shared hook.
 
+## Client Portal Create account / access request
+
+### Prerequisites
+
+Complete [shared Dev setup](shared-dev.md), including the scoped server-only
+submission secret, and start `npm run dev`. Use a fresh logged-out private window
+at `http://localhost:3000/portal`. Use synthetic data only: a new unique address
+such as `qa-access-<unique suffix>@taxtrax.example.invalid`, name `Synthetic QA
+Requester`, phone `+44 7700 900123`, optional company `Synthetic QA Company`.
+No deliverable inbox, password, invitation template, Docker or AI tool is needed.
+Owner record inspection is private in **Dev** SQL Editor; never select Production.
+
+| ID | Action | Expected result / PASS criteria |
+| --- | --- | --- |
+| C1 | Click Create account; fill name/email, then Continue. | Ahmed's existing two-step form/layout works; no password is collected. |
+| C2 | Fill phone/company but leave consent unchecked and submit. | Consent feedback appears; no success or stored request. |
+| C3 | Check consent and submit once. | Request received appears. Network POST is `/api/portal/access-requests`, not `/api/contact`, with `contact_consent: true`; response is generic `{ "ok": true }` with no ID/session. |
+| C4 | Ask Hélio to inspect the matching Dev request. | One row: trimmed name/phone/company, lowercase email, consent true, status pending and generated ID/timestamp. Blank company is stored as null. No Auth user/client_profile/invitation was created. |
+| C5 | Return to login/Create account and resubmit the same address, optionally uppercase and with changed name/company. | Same generic success, still one pending row; original data is not replaced. |
+| C6 | Submit using an existing synthetic Dev login email; ask Hélio to inspect matching Dev requests. | Same generic success, but no new pending access-request row is created. Existing Auth user/profile/login state is not changed or disclosed. Repeat with an Auth-only synthetic identity if available: the same rule applies without a profile. Pre-existing request rows are not deleted or changed. |
+| C7 | Open `/portal` again after submission. | Login remains; submitting a request does not grant portal access. Existing login/logout and recovery still work. |
+| C8 | Submit invalid email/phone or incomplete required fields; check desktop and narrow/mobile widths. | Clear validation feedback, no false success; design remains intact. More than five boundary-valid attempts in ten minutes may return generic throttling; wait before retrying. |
+
+Report C1–C8 PASS/FAIL, commit/browser/version and sanitized failures/screenshots.
+Never share scoped secrets or real personal data. Owner/admin review, approval and
+the handoff to provisioning are intentionally deferred; email delivery acceptance
+for invitations remains separately dependent on Ahmed's EmailJS configuration.
+
 ## Safe automated checks
 
 In a second terminal, from `website`, run:
@@ -154,11 +182,12 @@ npm run test:supabase-foundation
 npm run test:supabase-shared-dev
 npm run test:recovery
 npm run test:activation
+npm run test:access-requests
 npx tsc --noEmit
 git diff --check
 ```
 
-PASS means all four test suites finish with no failures, TypeScript reports no
+PASS means all five test suites finish with no failures, TypeScript reports no
 errors, and `git diff --check` reports no whitespace errors. These commands do
 not reset or seed the shared database and do not replace the manual checks.
 
@@ -174,6 +203,11 @@ resets the database. This owner-only suite is not required for Ahmed's manual QA
 With Playwright Chromium installed, `npm run test:activation:ui` additionally
 checks the real Next.js UI/callback and provider-unavailable behavior offline;
 it needs neither Docker nor privileged Dev access and sends no email.
+
+Hélio can run `npm run test:access-requests:shared-dev` after owner setup. It uses
+marked, disposable synthetic requests/identities to test real pending storage,
+duplicates, ordinary-client access denial and the existing UI. It sends no emails
+and never resets shared data. CLI/Management access is owner-only, not Ahmed's QA.
 
 The older `test:portal`, `test:auth-handlers`, `test:session` and `test:authz`
 suites remain tied to the previous local Docker/Supabase test infrastructure.

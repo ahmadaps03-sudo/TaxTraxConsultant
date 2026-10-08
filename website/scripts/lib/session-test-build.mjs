@@ -17,12 +17,19 @@ export async function sessionTestBuild(additionalFiles = [], { realPortal = fals
   const harness = path.join(directory, "harness");
   await mkdir(compiled);
   await mkdir(harness);
+  if (additionalFiles.includes("lib/access-requests/handler.ts")) {
+    const moduleDirectory = path.join(directory, "supabase", "functions", "submit-access-request");
+    await mkdir(moduleDirectory, { recursive: true });
+    const moduleSource = await readFile(path.join(website, "..", "supabase", "functions", "submit-access-request", "core.mjs"), "utf8");
+    await writeFile(path.join(moduleDirectory, "core.mjs"), moduleSource);
+    await writeFile(path.join(moduleDirectory, "core.cjs"), typescript.transpileModule(moduleSource, { compilerOptions: { target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.CommonJS } }).outputText);
+  }
   for (const target of [compiled, harness]) {
     await symlink(path.join(website, "node_modules"), path.join(target, "node_modules"), process.platform === "win32" ? "junction" : "dir");
   }
   for (const filename of new Set([...files, ...additionalFiles, ...(realPortal ? ["components/portal/CreateAccountForm.tsx"] : [])])) {
     const source = await readFile(path.join(website, filename), "utf8");
-    const output = typescript.transpileModule(source, { fileName: filename, compilerOptions: { target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.CommonJS, jsx: typescript.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText.replace('require("server-only");', "");
+    const output = typescript.transpileModule(source, { fileName: filename, compilerOptions: { target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.CommonJS, jsx: typescript.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText.replace('require("server-only");', "").replace('submit-access-request/core.mjs', 'submit-access-request/core.cjs');
     const compiledPath = path.join(compiled, filename.replace(/\.tsx?$/, ".js"));
     const harnessPath = path.join(harness, filename);
     await mkdir(path.dirname(compiledPath), { recursive: true });

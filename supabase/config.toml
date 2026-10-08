@@ -59,3 +59,6 @@ enabled = false
 
 [functions.send-recovery-email]
 verify_jwt = false
+
+[functions.submit-access-request]
+verify_jwt = false

@@ -7,9 +7,9 @@ recovery and invite-only first-time setup use Supabase Auth and a signed EmailJS
 hook. MFA, backend Remember-me persistence and other portal functions remain deferred; this is
 not a production deployment or compliance certification.
 
-Ahmed's existing Create account UI sends a contact request only; it does not
-create an Auth identity or approve a profile. No new user-creation backend is
-added here. The Remember me checkbox only saves an email on the device, not
+Ahmed's existing Create account UI stores a pending access request in shared
+Supabase Dev; it does not create an Auth identity or approve a profile. Owner
+review/approval remains separate. The Remember me checkbox only saves an email on the device, not
 credentials or a different session lifetime.
 
 This guide covers environment setup and starting the app. For feature-by-feature
@@ -35,6 +35,7 @@ In `.env.local`, set these exact names:
 SUPABASE_URL=https://dbcakdqthnamgjfkkxzn.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<Dev sb_publishable_ key>
 AUTH_ORIGIN=http://localhost:3000
+ACCESS_REQUEST_SUBMISSION_SECRET=<scoped Dev submission secret, obtained privately>
 ```
 
 Obtain the project URL and publishable key from Helio privately, or from the
@@ -43,6 +44,9 @@ Never select Production, a legacy anon key, a secret/service-role key, a databas
 password or a management access token. The URL/key are unprivileged and browser-safe,
 but this implementation reads them server-side: no `NEXT_PUBLIC_SUPABASE_*`
 variables or browser Supabase client are needed. `AUTH_ORIGIN` is public configuration.
+Unlike the publishable key, `ACCESS_REQUEST_SUBMISSION_SECRET` is private,
+server-only and must never use `NEXT_PUBLIC_*`. Obtain it privately from Hélio.
+It permits pending submissions only, not reads, approval, Auth users or invites.
 Preserve unrelated existing environment values. The desktop's `ADMIN_API_KEY` is
 unrelated to Client Portal login; keep it private if using the admin app.
 
@@ -57,12 +61,64 @@ If port 3000 is occupied, stop your own earlier dev server deliberately; do not
 silently use another port without updating `AUTH_ORIGIN`. Restart after changing
 environment values. Other dashboard data/controls remain mock content.
 
-No Docker, Supabase CLI login/link, migration push or admin key is required for
+No Docker, Supabase CLI login/link, migration push or Supabase admin key is required for
 Ahmed's portal test. Internet access to the shared Dev project is required.
+
+## Access-request setup (owner only)
+
+The migrations are `20261008000100_client_access_requests.sql` and
+`20261008000200_access_request_existing_accounts.sql`. The first adds
+`client_access_requests` and a service-only pending-submit RPC; the second
+skips submissions for existing Auth account emails without exposing the result. RLS is
+enabled with no client policies/grants; even `service_role` has no direct table
+CRUD. The trusted SQL owner can inspect requests privately in Dev SQL Editor.
+There is no approval API/UI in this milestone; status is constrained to pending.
+Requests and consent are unverified visitor claims, not proof of identity.
+
+If the migration is not yet applied, the owner must check that the repository is
+linked to `dbcakdqthnamgjfkkxzn`, review the dry-run and apply only the intended
+Dev migration. From `website`, using authenticated project-local CLI:
+
+```powershell
+.\node_modules\.bin\supabase db push --linked --project-ref dbcakdqthnamgjfkkxzn --workdir .. --skip-vault --dry-run
+.\node_modules\.bin\supabase db push --linked --project-ref dbcakdqthnamgjfkkxzn --workdir .. --skip-vault
+npm run access-requests:setup:shared-dev
+```
+
+The setup helper hard-pins Dev, creates/reuses a random scoped submission secret,
+uploads only that secret, deploys only `submit-access-request` without Docker,
+and updates the ignored `.env.local` while preserving unrelated values. No
+credential is printed. Existing recovery/invitation function configuration is
+untouched. Share only the scoped secret with Ahmed privately, not a Supabase
+service-role key, database password or management token. Restart Next.js.
+
+The website validates same-origin JSON/custom-header requests and forwards to
+the capability-protected Edge Function; only the Edge runtime uses its built-in
+service credential to execute the narrow RPC. No privileged Supabase key enters
+website runtime or browser code. Public clients cannot invoke the RPC/table.
+Duplicates acknowledge success without overwriting the first request. The trusted
+database function also skips insertion when the normalized email belongs to an
+Auth user, with or without a client profile; profiles reference Auth users and
+have no separate email. New, duplicate and existing-account submissions return
+the same success. Existing requests/accounts/profiles are not changed. No email,
+Auth identity, profile or approval is created.
+
+Basic limits are five valid-boundary attempts per ten minutes per trusted IP,
+process-local, with a bounded map and a honeypot. Without `TRUST_PROXY=1`, requests
+share a fallback bucket; client-supplied forwarding headers are not trusted.
+Only enable that flag behind a proxy that overwrites those headers. These are
+basic Dev abuse controls, not distributed production protection. Secrets must
+not be logged or shared in screenshots. Production rollout/hardening is deferred.
+
+Owner-only `npm run test:access-requests:shared-dev` requires CLI provisioning and
+Management SQL access plus Playwright Chromium. It exercises real UI/storage/RLS
+using disposable `.invalid` identities/requests, sends no emails, never resets
+schemas/data and removes only its own fixtures. Ahmed's checks are in `TESTING.md`.
 
 ## Recovery email setup (owner only)
 
-The website still needs only the three Supabase/origin variables above. EmailJS
+Authentication still uses the three Supabase/origin variables above; access
+requests additionally use the separate scoped submission secret. EmailJS
 credentials belong to the Dev `send-recovery-email` Edge Function, not browser
 code or website authentication runtime. The empty additional names in
 `.env.example` are owner setup reminders; Ahmed does not need EmailJS keys.
@@ -180,6 +236,7 @@ npm run test:supabase-foundation
 npm run test:supabase-shared-dev
 npm run test:recovery
 npm run test:activation
+npm run test:access-requests
 npx tsc --noEmit
 git diff --check
 ```
