@@ -72,7 +72,8 @@ The migrations are `20261008000100_client_access_requests.sql` and
 skips submissions for existing Auth account emails without exposing the result. RLS is
 enabled with no client policies/grants; even `service_role` has no direct table
 CRUD. The trusted SQL owner can inspect requests privately in Dev SQL Editor.
-There is no approval API/UI in this milestone; status is constrained to pending.
+The separate review migration/API below extends decision states; the desktop
+review UI is not implemented. Public submissions still start pending only.
 Requests and consent are unverified visitor claims, not proof of identity.
 
 If the migration is not yet applied, the owner must check that the repository is
@@ -114,6 +115,40 @@ Owner-only `npm run test:access-requests:shared-dev` requires CLI provisioning a
 Management SQL access plus Playwright Chromium. It exercises real UI/storage/RLS
 using disposable `.invalid` identities/requests, sends no emails, never resets
 schemas/data and removes only its own fixtures. Ahmed's checks are in `TESTING.md`.
+
+## Admin access-request review setup (owner only)
+
+The backend review API exists; the desktop review UI is not implemented. Its
+[API contract](admin-access-requests.md) is separate from setup/manual QA.
+Every existing admin-key holder may decide requests; there are no staff roles.
+Keep `ADMIN_API_KEY` private and unchanged in the website/Electron settings.
+
+Review additionally needs `ADMIN_ACCESS_REQUEST_SECRET` in the ignored website
+environment and the new Dev `review-access-requests` Edge Function. This is a
+private, review-only capability, **different** from
+`ACCESS_REQUEST_SUBMISSION_SECRET`; never use `NEXT_PUBLIC_*` or share either in
+renderer code. No privileged Supabase credential enters website runtime.
+
+After reviewing the linked-Dev-only migration
+`20261009000100_admin_access_request_review.sql`, use the existing dry-run/push
+commands above to apply only that migration, then from `website`:
+
+```powershell
+npm run admin:access-requests:setup:shared-dev
+```
+
+The owner helper pins `dbcakdqthnamgjfkkxzn`, sets only the new review secret,
+deploys only `review-access-requests`, and preserves unrelated `.env.local`
+values. It needs authenticated owner CLI access, not Docker. Restart Next.js.
+It does not change submission, recovery, activation, EmailJS or Production
+settings. Approval attempts invitations through the existing signed hook;
+real invitation-email acceptance still depends on Ahmed's invitation template.
+
+Safe offline checks: `npm run test:admin-access-requests`. Owner-only
+`npm run test:admin-access-requests:shared-dev` exercises synthetic disposable
+rows/Auth users and same-core approval with no-email invitation proof generation.
+It never resets schemas/data or invokes real email delivery; see the contract
+for limitations and the canonical manual QA guide for real delivery acceptance.
 
 ## Recovery email setup (owner only)
 

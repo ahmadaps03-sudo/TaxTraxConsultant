@@ -169,9 +169,47 @@ Owner record inspection is private in **Dev** SQL Editor; never select Productio
 | C8 | Submit invalid email/phone or incomplete required fields; check desktop and narrow/mobile widths. | Clear validation feedback, no false success; design remains intact. More than five boundary-valid attempts in ten minutes may return generic throttling; wait before retrying. |
 
 Report C1–C8 PASS/FAIL, commit/browser/version and sanitized failures/screenshots.
-Never share scoped secrets or real personal data. Owner/admin review, approval and
-the handoff to provisioning are intentionally deferred; email delivery acceptance
-for invitations remains separately dependent on Ahmed's EmailJS configuration.
+Never share scoped secrets or real personal data. Owner/admin review and approval
+now have a backend API; the desktop review UI remains unimplemented. Invitation
+email delivery acceptance remains separately dependent on Ahmed's EmailJS configuration.
+
+## Admin Client Portal access-request review (backend only)
+
+Complete owner review setup in [shared-dev.md](shared-dev.md), restart the app,
+and obtain the local website admin key privately. There is **no desktop review
+UI yet**. Use PowerShell/API calls below; API details and retry states are in
+[admin-access-requests.md](admin-access-requests.md). Use synthetic data only.
+Prepare separate new requests for approval and rejection through Create account.
+Use a privately supplied deliverable synthetic inbox only for the invitation
+delivery check; never reuse an already activated account for initial approval.
+
+```powershell
+$secureKey = Read-Host "Local Dev website admin key" -AsSecureString
+$headers = @{ 'x-admin-key' = [System.Net.NetworkCredential]::new('', $secureKey).Password }
+$base = 'http://localhost:3000/api/admin/accessrequests'
+Invoke-RestMethod -Uri $base -Headers $headers
+$id = '<synthetic request UUID from the list>'
+Invoke-RestMethod -Uri "$base`?id=$id" -Headers $headers
+$body = @{ id = $id; action = 'approve' } | ConvertTo-Json -Compress
+Invoke-RestMethod -Uri $base -Method Patch -Headers $headers -ContentType 'application/json' -Body $body
+```
+
+| ID | Action | Expected result / PASS criteria |
+| --- | --- | --- |
+| R1 | GET list/details with valid key; repeat without/wrong key. | At most 50 pending requests, oldest first; correct detail. Unauthorized calls return 401, without data. Responses are no-store. |
+| R2 | Approve the new synthetic request using PATCH. Refresh its detail. | Approved decision/time; one marked unconfirmed Auth identity and active profile before invitation. Provisioning ready; invitation outcome recorded separately. No password/proof/link in API response. |
+| R3 | Repeat approve on R2. | Same account/profile/decision; no additional invitation. A timeout/503 requires detail inspection before retry, not an assumption of rollback. |
+| R4 | On a different pending request, change `$id` and `$body` action to `reject`; repeat reject, then try approve. | Rejected once/time stable; no Auth/profile/email. Repeated reject succeeds; approve returns 409. Public resubmission stays generic and does not reopen it. |
+| R5 | For an approved unconfirmed request with failed/unknown delivery, inspect its state, wait at least 60 seconds, then PATCH `resend_invite`. | Same user/profile; new invitation attempt/outcome. Immediate/concurrent resend returns 409. Approval/profile remain even if email fails. No automatic retry on uncertain delivery. |
+| R6 | When Ahmed's invitation template is configured, inspect the synthetic inbox and perform existing A3–A8 activation/login tests. Afterwards try explicit resend. | Invitation arrives and existing activation/first-password/fresh-login works. Confirmed account refuses resend with 409; approval/profile are unchanged. **Real email delivery acceptance is deferred until that configuration is ready**, not implied by automated tests. |
+| R7 | Send malformed UUID, unknown action or extra `status`/`email` body fields; also send approved→reject or rejected→approve. | Invalid input returns 400/no action; conflicting decisions return 409/no transition. |
+
+Provisioning interruption, concurrent approve/reject and unrelated-account
+takeover protection are covered by the focused shared-Dev suite; do not force
+failures/reset data or modify real accounts manually. Report R1–R7 PASS/FAIL,
+commit/browser/API tool and sanitized failures; never include keys, links or
+real personal data. Afterwards `Remove-Variable headers,secureKey` to discard
+the local test credential references.
 
 ## Safe automated checks
 
@@ -183,11 +221,12 @@ npm run test:supabase-shared-dev
 npm run test:recovery
 npm run test:activation
 npm run test:access-requests
+npm run test:admin-access-requests
 npx tsc --noEmit
 git diff --check
 ```
 
-PASS means all five test suites finish with no failures, TypeScript reports no
+PASS means all six test suites finish with no failures, TypeScript reports no
 errors, and `git diff --check` reports no whitespace errors. These commands do
 not reset or seed the shared database and do not replace the manual checks.
 
