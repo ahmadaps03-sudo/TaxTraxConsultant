@@ -6,9 +6,10 @@ const ICONS = {
   pen: '<path d="M4 20l1-5L16 4l4 4L9 19zM14 6l4 4"/>', video: '<rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>', out: '<path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5M15 8l4 4-4 4M19 12H9"/>',
   play: '<path d="M8 5v14l11-7z"/>', plus: '<path d="M12 5v14M5 12h14"/>', refresh: '<path d="M20 11a8 8 0 0 0-14-4L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4l2-2M20 20v-5h-5"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>',
 };
+Object.assign(ICONS, { user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>', check: '<path d="M5 12l5 5L20 7"/>' });
 const icon = (n, size) => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "ic"); if (size) { s.setAttribute("width", size); s.setAttribute("height", size); } s.innerHTML = ICONS[n]; return s; }; // constants only
-const NAV = [["Overview", [["Dashboard", "home"]]], ["Inbox", [["Messages", "mail"], ["Bookings", "cal"], ["Leads", "users"]]], ["Content", [["Blog Manager", "pen"], ["Video Manager", "video"]]]];
-const NEED = { Dashboard: ["summary", "analytics", "messages", "bookings"], Messages: ["summary", "messages"], Bookings: ["summary", "bookings"], Leads: ["summary", "leads"], "Blog Manager": ["summary", "posts"], "Video Manager": ["summary", "videos"] };
+const NAV = [["Overview", [["Dashboard", "home"]]], ["Inbox", [["Messages", "mail"], ["Bookings", "cal"], ["Leads", "users"]]], ["Clients", [["Account Requests", "user"]]], ["Content", [["Blog Manager", "pen"], ["Video Manager", "video"]]]];
+const NEED = { Dashboard: ["summary", "analytics", "messages", "bookings"], Messages: ["summary", "messages"], Bookings: ["summary", "bookings"], Leads: ["summary", "leads"], "Blog Manager": ["summary", "posts"], "Video Manager": ["summary", "videos"], "Account Requests": ["accounts"] };
 const SERVICES = { "income-tax-return-fbr": "Income Tax Return (FBR)", "sales-tax-registration": "Sales Tax Registration", "company-registration-secp": "Company Registration (SECP)", "usa-llc-tax-filing": "USA LLC & Tax Filing", "uk-ltd-registration": "UK Ltd Registration", "uae-vat-corporate-tax": "UAE VAT & Corporate Tax" };
 const S = { view: "Dashboard", loading: true, d: {}, error: "", timer: null, msgFilter: "all", q: "", bookFilter: "all", editor: null, videoForm: null, host: "", modals: 0 };
 
@@ -40,8 +41,8 @@ function showModal({ title, body, footer }) {
     h("div", { class: "card modal" }, h("div", { class: "mh" }, h("h2", {}, title), h("button", { class: "mx", "aria-label": "Close", onclick: close }, icon("x", 16))), h("div", { class: "mb" }, body), footer ? h("div", { class: "mf" }, footer(close)) : null));
   document.addEventListener("keydown", onKey); document.body.append(bg); S.modals++; return close;
 }
-const confirmBox = (title, text) => new Promise((res) => {
-  const close = showModal({ title, body: h("p", { class: "muted", style: "font-size:14px" }, text), footer: (c) => [h("button", { class: "btn ghost", onclick: () => { c(); res(false); } }, "Cancel"), h("button", { class: "btn danger", onclick: () => { c(); res(true); } }, "Delete")] });
+const confirmBox = (title, text, label = "Delete", cls = "btn danger") => new Promise((res) => {
+  const close = showModal({ title, body: h("p", { class: "muted", style: "font-size:14px" }, text), footer: (c) => [h("button", { class: "btn ghost", onclick: () => { c(); res(false); } }, "Cancel"), h("button", { class: cls, onclick: () => { c(); res(true); } }, label)] });
   void close;
 });
 const kv = (pairs) => h("dl", { class: "kv" }, pairs.filter(([, v]) => v).map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
@@ -64,14 +65,14 @@ function showLogin(pref = "") {
 async function load(silent) {
   if (!silent) { S.loading = true; render(); }
   try { const keys = NEED[S.view]; const res = await Promise.all(keys.map((k) => window.admin.get(k))); keys.forEach((k, i) => (S.d[k] = res[i])); S.error = ""; } catch (ex) { S.error = clean(ex); }
-  S.loading = false; render();
+  S.loading = false; render(); refreshPending();
 }
 async function start() { S.host = (await window.admin.getSettings()).serverUrl; await load(); clearInterval(S.timer); S.timer = setInterval(() => { if (!S.modals && !S.editor && !S.videoForm) load(true); }, 30000); }
 const go = (v) => { Object.assign(S, { view: v, editor: null, videoForm: null }); load(); };
 
 /* ---------- shell ---------- */
 function render() {
-  const sm = S.d.summary || {}; const counts = { Messages: sm.unreadMessages, Bookings: sm.pendingBookings };
+  const sm = S.d.summary || {}; const counts = { Messages: sm.unreadMessages, Bookings: sm.pendingBookings, "Account Requests": accPending() };
   const side = h("aside", {}, h("div", { class: "brand" }, h("i"), h("span", {}, "TaxTrax Admin")),
     NAV.map(([g, items]) => [h("div", { class: "group" }, g), items.map(([n, ic]) => h("button", { class: "nav" + (n === S.view ? " active" : ""), onclick: () => go(n) }, icon(ic), h("span", { class: "t" }, n), counts[n] ? h("span", { class: "badge" }, counts[n]) : null))]),
     h("div", { class: "spacer" }), h("div", { class: "host" }, S.host), h("button", { class: "nav logout", onclick: async () => { await window.admin.logout(); showLogin(S.host); } }, icon("out"), h("span", { class: "t" }, "Log out")));
@@ -83,7 +84,7 @@ function render() {
 const empty = (t, d) => h("div", { class: "card empty" }, h("b", {}, t), d);
 const chips = (opts, cur, set) => h("div", { class: "chips" }, opts.map(([v, l]) => h("button", { class: "chip" + (cur === v ? " on" : ""), onclick: () => set(v) }, l)));
 function view() {
-  return { Dashboard: dashboard, Messages: messages, Bookings: bookings, Leads: leads, "Blog Manager": () => (S.editor ? postEditor() : blog()), "Video Manager": videos }[S.view]();
+  return { Dashboard: dashboard, Messages: messages, Bookings: bookings, Leads: leads, "Account Requests": accountRequests, "Blog Manager": () => (S.editor ? postEditor() : blog()), "Video Manager": videos }[S.view]();
 }
 
 /* ---------- charts (plain SVG, no libraries) ---------- */
@@ -222,6 +223,67 @@ function videoForm() {
     h("h2", {}, file ? "Upload a video file" : "Add a YouTube video"), h("label", {}, "Title", inp("title")),
     h("div", { class: "r2" }, h("label", {}, "Category", inp("category")), file ? h("label", {}, "Video file (MP4, WebM, MOV, up to 500 MB)", h("div", { class: "actions", style: "margin-top:6px" }, h("button", { class: "btn ghost sm", type: "button", onclick: async () => { const r = await window.admin.pickVideo(); if (r) { picked = r; pickLbl.textContent = `${r.name} (${(r.size / 1048576).toFixed(1)} MB)`; } } }, "Choose file…"), pickLbl)) : h("label", {}, "YouTube link", inp("link", "https://www.youtube.com/watch?v=…"))),
     h("label", {}, "Description (optional)", inp("description")), err, h("div", { class: "actions", style: "margin-top:14px" }, go2, h("button", { class: "btn ghost", type: "button", onclick: () => { S.videoForm = null; render(); } }, "Cancel")));
+}
+
+/* ---------- account requests (Client Portal sign-ups the owner must approve) ---------- */
+/* Backend contract: see ADMIN_ACCOUNT_REQUESTS_README.md. This page only talks to the collection named below. */
+const ACCOUNTS_API = "accounts"; // GET /api/admin/accounts  and  PATCH /api/admin/accounts  (lowercase letters only)
+const ST = { pending: "Pending", approved: "Approved", rejected: "Rejected", suspended: "Suspended" };
+Object.assign(S, { accFilter: "pending", accQ: "", accBusy: false, accPending: 0 });
+const accList = () => (Array.isArray(S.d[ACCOUNTS_API]) ? S.d[ACCOUNTS_API] : []);
+const accCount = (s) => accList().filter((a) => a.status === s).length;
+const accPending = () => S.accPending;
+
+/* keeps the sidebar badge up to date from any page; stays silent if the backend is not ready yet */
+async function refreshPending() {
+  if (S.view === "Account Requests") { S.accPending = accCount("pending"); return; }
+  try { const rows = await window.admin.get(ACCOUNTS_API); const n = Array.isArray(rows) ? rows.filter((a) => a.status === "pending").length : 0; if (n !== S.accPending) { S.accPending = n; render(); } } catch { /* badge is optional */ }
+}
+
+function accountRequests() {
+  const q = S.accQ.toLowerCase();
+  const rows = accList().filter((a) => (S.accFilter === "all" || a.status === S.accFilter) && (!q || `${a.name} ${a.email} ${a.phone} ${a.company}`.toLowerCase().includes(q)));
+  const stat = (label, n, f) => h("div", { class: "card stat", role: "button", tabindex: "0", onclick: () => { S.accFilter = f; render(); }, onkeydown: (e) => e.key === "Enter" && (S.accFilter = f, render()) }, h("div", {}, h("b", {}, num(n)), h("span", {}, label)));
+  const search = h("input", { class: "search", type: "search", placeholder: "Search name, email or phone…", value: S.accQ, oninput: (e) => { S.accQ = e.target.value; const p = e.target.selectionStart; render(); const el = document.querySelector(".search"); el.focus(); el.setSelectionRange(p, p); } });
+  const open = (a) => (e) => (e.type === "click" || (e.key === "Enter" && e.target === e.currentTarget)) && openAccount(a);
+  const btn = (cls, label, a, status) => h("button", { class: "btn sm " + cls, onclick: (e) => { e.stopPropagation(); setAccount(a, status); } }, label);
+  const actions = (a) => ({
+    pending: [btn("danger", "Reject", a, "rejected"), btn("", "Approve", a, "approved")],
+    approved: [btn("danger", "Suspend", a, "suspended")],
+    suspended: [btn("", "Reactivate", a, "approved")],
+    rejected: [btn("ghost", "Approve anyway", a, "approved")],
+  }[a.status] || []);
+  return h("div", {},
+    h("div", { class: "grid", style: "margin-bottom:16px" }, stat("Waiting for approval", accCount("pending"), "pending"), stat("Approved accounts", accCount("approved"), "approved"), stat("Rejected", accCount("rejected"), "rejected"), stat("Suspended", accCount("suspended"), "suspended")),
+    h("p", { class: "muted", style: "margin:0 0 12px;font-size:13px" }, "When someone creates an account in the Client Portal, it waits here until the owner approves it."),
+    h("div", { class: "actions", style: "margin-bottom:12px;justify-content:space-between" }, chips([["pending", "Pending"], ["approved", "Approved"], ["rejected", "Rejected"], ["suspended", "Suspended"], ["all", "All"]], S.accFilter, (v) => { S.accFilter = v; render(); }), search),
+    rows.length ? h("div", { class: "card list" },
+      h("div", { class: "thead cols-acc" }, h("span", {}, "Name"), h("span", {}, "Email"), h("span", {}, "Phone"), h("span", {}, "Company"), h("span", {}, "Requested"), h("span", {}, "Status"), h("span", {}, "")),
+      rows.map((a) => h("div", { class: "trow cols-acc", tabindex: "0", role: "button", onclick: open(a), onkeydown: open(a) },
+        h("span", { class: "c nm" }, a.name), h("span", { class: "c" }, a.email), h("span", { class: "c" }, a.phone || "—"), h("span", { class: "c" }, a.company || "—"), h("span", { class: "c muted" }, ago(a.createdAt)),
+        h("span", {}, h("span", { class: "pill " + a.status }, ST[a.status] || a.status)), h("span", { class: "acts" }, actions(a)))))
+      : empty(S.accQ ? "No matches" : "Nothing here", S.accQ ? "Nothing matches your search." : S.accFilter === "pending" ? "No new account requests right now." : "No accounts with this status."));
+}
+
+/* confirm (for risky actions), save through the backend, then reload the list */
+async function setAccount(a, status) {
+  if (S.accBusy) return false;
+  const T = { rejected: ["Reject this request?", `${a.name} will not be able to use the Client Portal.`, "Reject", "btn danger"], suspended: ["Suspend this account?", `${a.name} will lose access to the Client Portal until you reactivate it.`, "Suspend", "btn danger"] }[status];
+  if (T && !(await confirmBox(...T))) return false;
+  S.accBusy = true;
+  try { await window.admin.patch(ACCOUNTS_API, { id: a.id, status }); toast(`${a.name}: ${(ST[status] || status).toLowerCase()}`); await load(true); return true; }
+  catch (e) { toast(clean(e), true); load(true); return false; } // always refresh: a timeout does not prove nothing was saved
+  finally { S.accBusy = false; }
+}
+
+function openAccount(a) {
+  const act = (close, status) => async () => { if (await setAccount(a, status)) close(); };
+  const bt = (cls, label, status, ic) => (close) => h("button", { class: "btn " + cls, onclick: act(close, status) }, ic ? icon(ic) : null, label);
+  const set = { pending: [bt("danger", "Reject", "rejected"), bt("", "Approve account", "approved", "check")], approved: [bt("danger", "Suspend account", "suspended")], suspended: [bt("", "Reactivate account", "approved", "check")], rejected: [bt("", "Approve anyway", "approved", "check")] }[a.status] || [];
+  showModal({ title: "Account request",
+    body: kv([["Name", a.name], ["Email", h("a", { href: `mailto:${a.email}` }, a.email)], ["Phone", a.phone ? h("a", { href: `tel:${a.phone}` }, a.phone) : ""], ["Company", a.company], ["Status", h("span", { class: "pill " + a.status }, ST[a.status] || a.status)],
+      ["Requested", a.createdAt ? new Date(a.createdAt).toLocaleString() : ""], ["Decided", a.decidedAt ? new Date(a.decidedAt).toLocaleString() : ""]]),
+    footer: (close) => [...set.map((f) => f(close)), digits(a.phone) ? h("a", { class: "btn ghost", target: "_blank", href: `https://wa.me/${digits(a.phone)}` }, "WhatsApp") : null, h("button", { class: "btn ghost", onclick: close }, "Close")] });
 }
 
 (async () => { const s = await window.admin.getSettings(); if (s.connected) { try { await start(); return; } catch (e) { /* fall through */ } } showLogin(s.serverUrl); })();
