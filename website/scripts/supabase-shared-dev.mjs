@@ -43,8 +43,8 @@ export function selectDevKeys(keys) {
 export async function readDevKeys() {
   requireDevTarget((await readFile(path.join(repository, "supabase", ".temp", "project-ref"), "utf8")).trim());
   try {
-    const executable = path.join(website, "node_modules", "supabase", "bin", process.platform === "win32" ? "supabase.exe" : "supabase");
-    const result = await executeFile(executable, ["projects", "api-keys", "--project-ref", devRef, "--output", "json", "--workdir", repository], { timeout: 30_000, maxBuffer: 1024 * 1024, windowsHide: true });
+    const executable = path.join(website, "node_modules", "supabase", "dist", "supabase.js");
+    const result = await executeFile(process.execPath, [executable, "projects", "api-keys", "--project-ref", devRef, "--output", "json", "--workdir", repository], { timeout: 30_000, maxBuffer: 1024 * 1024, windowsHide: true });
     return selectDevKeys(JSON.parse(result.stdout));
   } catch (error) {
     if (error instanceof SharedDevSetupError) throw error;

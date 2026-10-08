@@ -264,12 +264,11 @@ test("tokens are absent from browser JavaScript storage, rendered HTML and clien
   }
 });
 
-test("Remember me is disabled and even forced DOM changes do not alter the credential contract", async () => {
+test("Remember me stores only email and does not alter the credential contract", async () => {
   await page.goto(`${origin}/portal`);
-  const checkbox = page.getByRole("checkbox", { name: "Remember me (not available yet)", exact: true });
-  assert.equal(await checkbox.isDisabled(), true);
-  assert.equal(await checkbox.isChecked(), false);
-  await checkbox.evaluate(element => { element.disabled = false; element.checked = true; });
+  const checkbox = page.getByRole("checkbox", { name: "Remember me", exact: true });
+  assert.equal(await checkbox.isDisabled(), false);
+  await checkbox.check({ force: true });
   await page.getByLabel("Email or username", { exact: true }).fill(fixtures["active-b"].email);
   try { await page.locator('input[name="password"]').fill(spacedPassword); }
   catch { throw new Error("Synthetic password field could not be filled."); }
@@ -281,9 +280,10 @@ test("Remember me is disabled and even forced DOM changes do not alter the crede
   assert.deepEqual(Object.keys(submission.body).sort(), ["email", "password"]);
   assert.ok(submission.body.password === spacedPassword, "Password bytes must be preserved by UI wiring");
   assert.equal(submission.customHeader, "1");
+  assert.equal(await page.evaluate(() => localStorage.getItem("taxtrax.portal.email")), fixtures["active-b"].email);
 });
 
-test("login layout, password toggle, recovery link and deferred activation remain intact", async () => {
+test("login layout, password toggle, recovery link and invitation guidance remain intact", async () => {
   await page.goto(`${origin}/portal`);
   await loginScreen();
   const brand = page.getByText("Your financial data is fully encrypted and secure.", { exact: true });
@@ -300,12 +300,8 @@ test("login layout, password toggle, recovery link and deferred activation remai
   const recovery = page.getByRole("link", { name: "Forgot password?", exact: true });
   assert.equal(await recovery.getAttribute("href"), "/portal/forgot-password");
   assert.equal(await recovery.getAttribute("aria-disabled"), null);
-  for (const name of ["First-time user? Activate your account"]) {
-    const link = page.getByRole("link", { name, exact: true });
-    assert.equal(await link.getAttribute("aria-disabled"), "true");
-    await link.click({ force: true });
-    assert.equal(page.url(), `${origin}/portal`);
-  }
+  assert.equal(await page.getByText("First-time user? Use the invitation email from TaxTrax to set up your account.", { exact: true }).count(), 1);
+  assert.equal(await page.getByRole("link", { name: /First-time user/ }).count(), 0);
   assert.equal(submissions.length, before);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok((await brand.boundingBox()).y < (await form.boundingBox()).y, "Mobile brand/form stacking must remain intact");

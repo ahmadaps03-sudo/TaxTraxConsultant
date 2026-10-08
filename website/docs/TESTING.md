@@ -24,8 +24,10 @@ Link to existing setup instructions rather than duplicating them here.
   in the same browser can share a session.
 
 The form still says “Email or username”, but authentication is **email-only**.
-Remember me, activation and MFA are not implemented for this
-milestone. Other dashboard content is mock data, not functionality under test.
+Remember me only saves the email on this device; it does not change session
+duration. Backend persistence policy and MFA remain deferred. First-time setup is invite-only, tested
+in its own section below. Other dashboard content is mock data, not functionality
+under test.
 
 ### Manual checks
 
@@ -101,6 +103,48 @@ Never include passwords, recovery URLs, cookies or tokens. For cross-device
 testing, `localhost` must resolve to a running Dev app on the opening device;
 do not replace it with an unapproved host.
 
+## Client Portal account activation
+
+### Acceptance status
+
+The activation implementation is complete for shared Dev. Final real
+invitation-email delivery QA is **deferred**, pending Ahmed's separate EmailJS
+invitation template/configuration described in [owner setup](shared-dev.md#first-time-setup-owner-invitation-setup).
+Offline and email-free shared-Dev checks do not establish inbox delivery or
+manual acceptance. Once configured, Hélio should explicitly resend to the
+retained approved, unconfirmed synthetic account, then Ahmed runs A1–A9 below
+and records actual email arrival and first-time setup results.
+
+### Prerequisites
+
+Complete [shared Dev setup](shared-dev.md) and keep `npm run dev` running at
+`http://localhost:3000`. Ask Hélio to approve and invite a **new deliverable
+synthetic Dev identity** named `Synthetic Invited Client` using the owner setup
+guide. Obtain inbox access privately; there is no initial password to share.
+Do not reuse an already-confirmed login/recovery fixture or use real client data.
+Start logged out in a fresh InPrivate/Incognito window. No Docker, AI tool,
+Supabase CLI or privileged credentials are needed by Ahmed.
+
+### Manual checks
+
+| ID | Exact action | Expected result / PASS criteria |
+| --- | --- | --- |
+| A1 | Open `/portal` while logged out. | Ahmed's login/account-request UI remains, with non-clickable first-time guidance to use the invitation email. The existing Create account tab submits a contact request, not a Supabase signup, approval or invitation. No public Auth signup or invitation resend is introduced. |
+| A2 | Check the new synthetic inbox/spam folder after Hélio issues the invitation. | A separate EmailJS invitation template arrives for the correct recipient, linking to local account setup. No password or session token is in the email. |
+| A3 | Before verifying any invitation, ask Hélio to explicitly resend. Use the newest email for the remaining checks; try the earlier link in a separate fresh private session and click Continue. | Resend does not change profile approval. The earlier replaced proof fails with generic invalid/expired feedback; no first-password form is granted. Respect provider email cooldowns when retrying. |
+| A4 | Open the newest invitation in the fresh private window. Reload/open it again before Continue. | The URL becomes `/portal/activate` with no proof in the address bar. Continue appears; GET/reload does not consume the proof. |
+| A5 | Click Continue. Open `/portal` in another tab of that private window, then return to `/portal/activate` and refresh. | First-password form appears after verification, but `/portal` still shows login. Refresh preserves setup. Owner-approved profile remains active; verification does not approve/change profiles. |
+| A6 | Try a short/common password or mismatched confirmation, then correct it. | Validation rejects invalid input without reporting successful setup; a corrected password can still be submitted using the current setup session. |
+| A7 | Choose and confirm a new synthetic password following the displayed rules, then click Set password. | Setup returns to login, not the dashboard. Fresh email/password login succeeds and shows Welcome, Synthetic Invited Client. Record the new credential privately. Logout still works. |
+| A8 | In a fresh private session, open the used invitation again and click Continue. Try a malformed link. Separately leave a new unused synthetic invitation beyond the provider's configured expiry (Hélio confirms the interval), then try it. | Used/invalid/expired links fail generically with no usable password form or portal access. Guidance says contact the team; no public resend or self-approval is offered. |
+| A9 | Ask Hélio to run the owner resend operation for the now-confirmed account. | The tool refuses reinvitation and does not alter credentials/profile approval. If setup was interrupted after email verification, existing password recovery is the recovery path. |
+
+Report A1–A9 PASS/FAIL, Dev commit, browser/version and sanitized screenshots/error
+output for failures. Never share invitation/recovery links, passwords or cookies.
+Email arrival and owner provisioning are manual prerequisites, not implied by
+passing the offline suite. Run the existing login/logout and recovery sections
+as regression checks when testing the newly deployed shared hook.
+
 ## Safe automated checks
 
 In a second terminal, from `website`, run:
@@ -109,11 +153,12 @@ In a second terminal, from `website`, run:
 npm run test:supabase-foundation
 npm run test:supabase-shared-dev
 npm run test:recovery
+npm run test:activation
 npx tsc --noEmit
 git diff --check
 ```
 
-PASS means all three test suites finish with no failures, TypeScript reports no
+PASS means all four test suites finish with no failures, TypeScript reports no
 errors, and `git diff --check` reports no whitespace errors. These commands do
 not reset or seed the shared database and do not replace the manual checks.
 
@@ -121,6 +166,14 @@ Hélio can also run `npm run test:recovery:shared-dev` with authenticated, Dev-l
 CLI access and Playwright Chromium. It tests real proof/password changes, browser
 isolation, RLS and login/logout using only uniquely named disposable fixtures.
 It does not send email or reset the database and is not required for Ahmed's QA.
+
+Hélio can similarly run `npm run test:activation:shared-dev` with Dev provisioning
+access. It uses disposable synthetic identities, tests real invite
+proofs/cookie isolation/RLS/first-password login, does not send email, and never
+resets the database. This owner-only suite is not required for Ahmed's manual QA.
+With Playwright Chromium installed, `npm run test:activation:ui` additionally
+checks the real Next.js UI/callback and provider-unavailable behavior offline;
+it needs neither Docker nor privileged Dev access and sends no email.
 
 The older `test:portal`, `test:auth-handlers`, `test:session` and `test:authz`
 suites remain tied to the previous local Docker/Supabase test infrastructure.

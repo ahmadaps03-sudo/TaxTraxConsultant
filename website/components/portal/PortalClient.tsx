@@ -224,7 +224,7 @@ export function PortalLogin({ logoutUnconfirmed = false }: { logoutUnconfirmed?:
               </button>
 
               <div className="ap-rise flex items-center justify-between text-xs" style={{ animationDelay: "400ms" }}>
-                <button type="button" onClick={() => go("signup")} disabled={pending} className="focus-ring text-signal transition-colors hover:text-ember">First-time user? Create an account</button>
+                <span className="text-smoke">First-time user? Use the invitation email from TaxTrax to set up your account.</span>
                 <a href="/contact" className="text-smoke transition-colors hover:text-paper">Need help?</a>
               </div>
             </form>

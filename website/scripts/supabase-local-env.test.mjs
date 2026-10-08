@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { populateLocalEnv, updateEnvContent, validateLocalStatus } from "./supabase-local-env.mjs";
+import { populateLocalEnv, runLocalSupabase, updateEnvContent, validateLocalStatus } from "./supabase-local-env.mjs";
 
 const key = "sb_publishable_synthetic_test_key";
 const values = { SUPABASE_URL: "http://127.0.0.1:55321", SUPABASE_PUBLISHABLE_KEY: key };
@@ -20,6 +20,10 @@ async function withEnvironment(run) {
     await rm(directory, { recursive: true, force: true });
   }
 }
+
+test("pinned CLI Node launcher runs without Docker or remote access", async () => {
+  assert.equal((await runLocalSupabase(["--version"])).trim(), "2.120.0");
+});
 
 test("local status selects only the publishable key, or a legacy anon key", () => {
   assert.deepEqual(validateLocalStatus(status), values);

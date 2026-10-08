@@ -8,7 +8,17 @@ export function emailConfiguration(environment) {
     const local = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
     if ((!local && url.protocol !== "https:") || url.origin !== origin || url.username || url.password) throw new Error("Invalid recovery origin.");
   }
-  return { ...config, origins };
+  const inviteTemplate = environment("EMAILJS_INVITE_TEMPLATE_ID");
+  const activationOrigins = (environment("ACTIVATION_ALLOWED_ORIGINS") ?? "").split(",").map(value => value.trim()).filter(Boolean);
+  let activationConfigured = activationOrigins.length > 0;
+  for (const origin of activationOrigins) {
+    try {
+      const url = new URL(origin);
+      const local = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      if ((!local && url.protocol !== "https:") || url.origin !== origin || url.username || url.password) activationConfigured = false;
+    } catch { activationConfigured = false; }
+  }
+  return { ...config, origins, inviteTemplate, activationOrigins: activationConfigured ? activationOrigins : [] };
 }
 
 async function boundedPayload(request) {
@@ -44,20 +54,26 @@ export async function sendRecoveryEmail(request, config, Webhook, deliver = fetc
     payload = verifier.verify(await boundedPayload(request), Object.fromEntries(request.headers));
   } catch { return fail(401); }
   const { user, email_data: email } = payload ?? {};
-  if (email?.email_action_type !== "recovery" || typeof user?.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)
-    || typeof user.email_confirmed_at !== "string" || !Number.isFinite(Date.parse(user.email_confirmed_at))
-    || typeof email?.token_hash !== "string" || !/^[a-f0-9]{40,128}$/.test(email.token_hash)
+  const invite = email?.email_action_type === "invite";
+  if (!invite && email?.email_action_type !== "recovery") return fail(400);
+  if (typeof user?.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)
+    || typeof email?.token_hash !== "string" || !/^[a-f0-9]{40,128}$/.test(email.token_hash)) return fail(400);
+  if (invite) {
+    if (user.email_confirmed_at || user.app_metadata?.taxtrax_client_invitation !== "taxtrax-client-invite-v1") return fail(400);
+    if (typeof config.inviteTemplate !== "string" || !config.inviteTemplate || config.inviteTemplate === config.EMAILJS_TEMPLATE_ID || config.inviteTemplate.length > 4096 || !config.activationOrigins.length) return fail(503);
+    if (!config.activationOrigins.some(origin => email.redirect_to === `${origin}/api/auth/activation/callback`)) return fail(400);
+  } else if (typeof user.email_confirmed_at !== "string" || !Number.isFinite(Date.parse(user.email_confirmed_at))
     || !config.origins.some(origin => email.redirect_to === `${origin}/api/auth/recovery/callback`)) return fail(400);
   const recovery = new URL(email.redirect_to);
   recovery.searchParams.set("token_hash", email.token_hash);
-  recovery.searchParams.set("type", "recovery");
+  recovery.searchParams.set("type", invite ? "invite" : "recovery");
   try {
     const response = await deliver("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST", redirect: "error", signal: AbortSignal.timeout(4000),
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ service_id: config.EMAILJS_SERVICE_ID, template_id: config.EMAILJS_TEMPLATE_ID,
+      body: JSON.stringify({ service_id: config.EMAILJS_SERVICE_ID, template_id: invite ? config.inviteTemplate : config.EMAILJS_TEMPLATE_ID,
         user_id: config.EMAILJS_PUBLIC_KEY, accessToken: config.EMAILJS_PRIVATE_KEY,
-        template_params: { to_email: user.email, recovery_url: recovery.href } }),
+        template_params: invite ? { to_email: user.email, activation_url: recovery.href } : { to_email: user.email, recovery_url: recovery.href } }),
     });
     if (!response.ok) return fail(503);
     return new Response("{}", { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });

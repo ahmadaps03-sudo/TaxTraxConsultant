@@ -3,9 +3,14 @@
 Use only TaxTrax DEVELOPMENT (`dbcakdqthnamgjfkkxzn`). Production is not a test
 target. Existing authentication, profile RLS and provider-session checks are
 unchanged. SQLite remains local for unrelated website/admin features. Password
-recovery now uses Supabase Auth and a signed EmailJS hook. MFA, Remember me,
-activation and other portal functions remain deferred; this is
+recovery and invite-only first-time setup use Supabase Auth and a signed EmailJS
+hook. MFA, backend Remember-me persistence and other portal functions remain deferred; this is
 not a production deployment or compliance certification.
+
+Ahmed's existing Create account UI sends a contact request only; it does not
+create an Auth identity or approve a profile. No new user-creation backend is
+added here. The Remember me checkbox only saves an email on the device, not
+credentials or a different session lifetime.
 
 This guide covers environment setup and starting the app. For feature-by-feature
 manual QA, use the canonical [backend testing guide](TESTING.md).
@@ -97,9 +102,10 @@ In Dev **Authentication > Hooks**, enable Send Email with URL
 In **Authentication > URL Configuration**, keep the site URL local and explicitly
 allow `http://localhost:3000/api/auth/recovery/callback`; preserve other approved
 entries. Do not push the whole local config. The signature-verified hook handles
-recovery only; unsupported email actions fail closed, not silently successful.
-Only already-confirmed Auth identities receive recovery emails; this is not an
-account activation path. Verification/update still require an active own profile.
+recovery and narrowly scoped invitations; unsupported email actions fail closed,
+not silently successful. Only already-confirmed Auth identities receive recovery
+emails. Invitations use the separate setup below; recovery behavior and template
+remain unchanged. Verification/update still require an active own profile.
 
 Supabase owns proof generation, verification and expiry (currently one hour in
 Dev). EmailJS receives the recipient/recovery link, never passwords/session tokens.
@@ -173,6 +179,7 @@ From `website`:
 npm run test:supabase-foundation
 npm run test:supabase-shared-dev
 npm run test:recovery
+npm run test:activation
 npx tsc --noEmit
 git diff --check
 ```
@@ -189,3 +196,91 @@ signing/database internals. They are not remote-ready and must not be retargeted
 by replacing URLs or bypassing their local guards. Keep them for the optional
 Docker-local workflow. Do not reset, truncate, globally reseed, or run migrations
 against shared Dev as part of ordinary login/logout testing.
+
+## First-time setup: owner invitation setup
+
+The activation implementation is complete for the shared Dev scope. Final real
+invitation-email delivery acceptance is **deferred** until Ahmed configures the
+separate invitation template in his EmailJS account and its Dev hook settings
+below are verified. Do not treat automated proof/setup tests as inbox delivery
+acceptance. Recovery keeps its existing template and behavior.
+
+Keep the existing `send-recovery-email` function name, hook URL, signing secret,
+EmailJS service and recovery template. Create a **separate invitation template**
+within the available free EmailJS quota: **To Email** = `{{to_email}}`, link target
+= `{{activation_url}}`. Do not rename or reuse the recovery template. Add these
+Dev Edge Function secrets privately (never website runtime or `NEXT_PUBLIC_*`):
+
+```text
+EMAILJS_INVITE_TEMPLATE_ID
+ACTIVATION_ALLOWED_ORIGINS
+```
+
+Set the activation origin allowlist to `http://localhost:3000`, redeploy the
+existing function using the owner command above, and preserve all recovery
+settings. Missing/invalid invitation configuration refuses invitations without
+disabling recovery. Add the exact
+`http://localhost:3000/api/auth/activation/callback` entry in Dev **Authentication
+> URL Configuration**. Public signup must remain disabled. No new migration,
+Production changes or paid feature is required. Remote setup is not performed
+by changing the repository's local `supabase/config.toml` alone.
+
+The owner tool is hard-pinned to the approved shared Dev ref and accepts only
+designated synthetic test identities. It reads a private JSON object through
+stdin, obtains a privileged Dev key via the existing CLI helper in memory, and
+never logs or saves credentials, identity data or invitation links. Do not add
+privileged credentials to `.env.local`. CLI permission failures must be resolved
+by the owner before provisioning; no broader log-access permissions are needed.
+Run `npm ci` after pulling: the project-local CLI is pinned to `2.120.0`, and the
+owner helper uses its Node launcher on Windows and Linux. Node/runtime settings
+are unchanged.
+
+Outside the repository, prepare a private input file with fields `email`, `name`,
+`approved: true` and `synthetic: true`. Use a new deliverable synthetic email and
+the trimmed name `Synthetic Invited Client`, not an existing confirmed recovery
+or login fixture. Supplying `approved: true` is the owner's explicit approval.
+From `website`, Windows PowerShell:
+
+```powershell
+Get-Content -Raw "$env:USERPROFILE\taxtrax-invite-private.json" | npm run auth:invite:shared-dev -- create
+```
+
+This creates an unconfirmed Auth identity, creates its profile pending, approves
+the profile active, verifies eligibility, then calls Supabase's invitation API.
+Supabase owns the proof and credentials; the owner never chooses or distributes
+the client's password. Profile creation failure removes only the new identity.
+Delivery failure retains the approved unconfirmed account for inspection/retry;
+the command does not claim success. Existing identities are never overwritten
+or implicitly reinvited. No approval is changed by invitation acceptance.
+If a prior delivery attempt already created the synthetic account, keep that
+account and use explicit resend after Ahmed's template/configuration is ready;
+do not run create again or mark the account confirmed to bypass invitation QA.
+
+To explicitly resend, use a private JSON file with **only** `email` and
+`synthetic: true`, then run:
+
+```powershell
+Get-Content -Raw "$env:USERPROFILE\taxtrax-resend-private.json" | npm run auth:invite:shared-dev -- resend
+```
+
+Resend requires an unconfirmed owner-tool identity with its existing active
+profile; pending/suspended/missing profiles and confirmed accounts are refused.
+Provider email cooldowns still apply. Use the newest email link. Once email
+verification has succeeded, finish setup in that browser; if interrupted without
+its setup cookies, use password recovery instead of reinviting a confirmed user.
+There is no public signup/resend flow or admin UI.
+
+Invitation verification uses separate HttpOnly setup cookies, not portal or
+recovery cookies. GET does not consume the proof; **Continue** verifies it.
+First-password submission rechecks provider identity and active-profile RLS,
+reuses password validation, revokes that user's provider sessions and clears
+setup/browser portal cookies. The user must then log in freshly. No profile
+approval/status is updated by setup. Keep using `npm run dev` so both invitation
+and recovery callback proofs are redacted from request logs.
+
+Ahmed needs only the ordinary setup above, a new invitation/inbox access supplied
+privately by Hélio, and the [manual activation checks](TESTING.md#client-portal-account-activation).
+Owner-only `npm run test:activation:shared-dev` needs Dev CLI provisioning access
+and Playwright Chromium. It uses disposable, marked synthetic users and provider
+proofs without sending emails or resetting shared data. Free quotas still apply;
+Production remains unconfigured.

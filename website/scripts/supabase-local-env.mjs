@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 const executeFile = promisify(execFile);
 export const websiteDirectory = fileURLToPath(new URL("../", import.meta.url));
 export const repositoryDirectory = path.resolve(websiteDirectory, "..");
-const cliPath = path.join(websiteDirectory, "node_modules", "supabase", "bin", process.platform === "win32" ? "supabase.exe" : "supabase");
+const cliPath = path.join(websiteDirectory, "node_modules", "supabase", "dist", "supabase.js");
 
 function assertLocalUrl(value, port, label) {
   let parsed;
@@ -49,7 +49,7 @@ export async function runLocalSupabase(args, timeout = 30_000) {
     throw new Error("Expected the repository's taxtrax-client-auth local Supabase project.");
   }
   try {
-    const result = await executeFile(cliPath, [...args, "--workdir", repositoryDirectory], {
+    const result = await executeFile(process.execPath, [cliPath, ...args, "--workdir", repositoryDirectory], {
       cwd: repositoryDirectory,
       timeout,
       maxBuffer: 8 * 1024 * 1024,

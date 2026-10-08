@@ -22,31 +22,35 @@
     "test:supabase-shared-dev": "node --test scripts/supabase-shared-dev.test.mjs",
     "test:recovery": "node --test scripts/recovery.test.mjs",
     "test:recovery:shared-dev": "node --test scripts/recovery-shared-dev.test.mjs",
+    "auth:invite:shared-dev": "node scripts/invite-client-dev.mjs",
+    "test:activation": "node --test scripts/activation.test.mjs",
+    "test:activation:ui": "node --test scripts/activation-ui.test.mjs",
+    "test:activation:shared-dev": "node --test scripts/activation-shared-dev.test.mjs",
     "test:authz": "node --test scripts/client-profiles-authz.test.mjs",
     "test:session": "node --test scripts/server-session.test.mjs",
     "test:auth-handlers": "node --test scripts/auth-handlers.test.mjs",
     "test:portal": "node --test scripts/portal-integration.test.mjs"
   },
   "dependencies": {
+    "@supabase/ssr": "0.8.0",
+    "@supabase/supabase-js": "2.78.0",
+    "better-sqlite3": "^11.5.0",
+    "geoip-lite": "^1.4.10",
     "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "better-sqlite3": "^11.5.0",
-    "geoip-lite": "^1.4.10",
-    "@supabase/supabase-js": "2.78.0",
-    "@supabase/ssr": "0.8.0",
     "server-only": "0.0.1"
   },
   "devDependencies": {
-    "typescript": "5.5.4",
-    "@types/react": "18.3.3",
     "@types/node": "20.14.10",
-    "tailwindcss": "3.4.7",
-    "postcss": "8.5.28",
+    "@types/react": "18.3.3",
     "autoprefixer": "10.4.19",
-    "supabase": "2.54.0",
     "playwright": "1.61.1",
-    "standardwebhooks": "1.0.0"
+    "postcss": "8.5.28",
+    "standardwebhooks": "1.0.0",
+    "supabase": "2.120.0",
+    "tailwindcss": "3.4.7",
+    "typescript": "5.5.4"
   },
   "overrides": {
     "supabase": {

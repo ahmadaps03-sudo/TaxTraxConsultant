@@ -35,8 +35,8 @@ Pinned packages:
 | `@supabase/supabase-js` | `2.78.0` | Supports the existing Node 18/20 range; later releases require newer Node. |
 | `@supabase/ssr` | `0.8.0` | Compatible `supabase-js` peer (`^2.76.1`); used by checkpoint-4 server session integration. |
 | `server-only` | `0.0.1` | Guards the server session and authorization modules against browser imports. |
-| `supabase` | `2.54.0` | Project-local CLI whose installer supports the existing Node 18/20 range. |
-| CLI-only `tar` override | `7.5.22` | Replaces the CLI installer's older exact archive dependency without changing its Node support. |
+| `supabase` | `2.120.0` | Pinned project-local CLI with a Node launcher, verified using the existing Node 20 runtime. |
+| CLI-only `tar` override | `7.5.22` | Retained legacy archive override; the current CLI Node launcher no longer depends on `tar`. |
 
 No test framework dependency is needed here: helper tests use Node's built-in
 test runner. The lockfile pins transitive dependencies as well. These are

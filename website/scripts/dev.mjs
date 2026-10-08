@@ -3,7 +3,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 export function redactRecoveryLog(line) {
-  return line.replace(/(\/api\/auth\/recovery\/callback)\?[^\s]*/gi, "$1?[redacted]")
+  return line.replace(/(\/api\/auth\/(?:recovery|activation)\/callback)\?[^\s]*/gi, "$1?[redacted]")
     .replace(/(token_hash=)[^&\s]*/gi, "$1[redacted]");
 }
 
