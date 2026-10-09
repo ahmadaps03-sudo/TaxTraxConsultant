@@ -28,7 +28,7 @@ export async function sessionTestBuild(additionalFiles = [], { realPortal = fals
   for (const target of [compiled, harness]) {
     await symlink(path.join(website, "node_modules"), path.join(target, "node_modules"), process.platform === "win32" ? "junction" : "dir");
   }
-  for (const filename of new Set([...files, ...additionalFiles, ...(realPortal ? ["components/portal/CreateAccountForm.tsx"] : [])])) {
+  for (const filename of new Set([...files, ...additionalFiles, ...(additionalFiles.includes("lib/auth/activation.ts") ? ["lib/auth/welcome.ts"] : []), ...(realPortal ? ["components/portal/CreateAccountForm.tsx"] : [])])) {
     const source = await readFile(path.join(website, filename), "utf8");
     const output = typescript.transpileModule(source, { fileName: filename, compilerOptions: { target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.CommonJS, jsx: typescript.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText.replace('require("server-only");', "").replace(/(submit-access-request|review-access-requests)\/core\.mjs/g, "$1/core.cjs");
     const compiledPath = path.join(compiled, filename.replace(/\.tsx?$/, ".js"));

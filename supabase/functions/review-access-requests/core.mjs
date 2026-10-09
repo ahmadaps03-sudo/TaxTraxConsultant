@@ -3,7 +3,6 @@ export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 
 export function reviewData(value) {
   if (Array.isArray(value)) {
-    if (value.length > 50) throw new Error();
     return value.map(reviewData);
   }
   if (!value || typeof value !== "object" || !uuidPattern.test(value.id ?? "")) throw new Error();
@@ -15,9 +14,10 @@ export function reviewData(value) {
 export function reviewInput(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
   if (body.action === "list" && Object.keys(body).length === 1) return { action: "list" };
+  if (body.action === "list_all" && Object.keys(body).length === 1) return { action: "list_all" };
   if (Object.keys(body).length !== 2 || !Object.hasOwn(body, "id") || !Object.hasOwn(body, "action")
     || typeof body.id !== "string" || !uuidPattern.test(body.id)
-    || !["detail", "approve", "reject", "resend_invite"].includes(body.action)) throw new Error();
+    || !["detail", "approve", "reject", "resend_invite", "set_approved", "suspend", "reject_pending"].includes(body.action)) throw new Error();
   return { id: body.id.toLowerCase(), action: body.action };
 }
 

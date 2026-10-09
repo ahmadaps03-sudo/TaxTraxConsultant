@@ -9,7 +9,7 @@ import { sessionTestBuild } from "./lib/session-test-build.mjs";
 const origin = "http://localhost:3000";
 const hash = "a".repeat(64);
 const secret = randomBytes(32).toString("base64");
-const config = emailConfiguration(name => ({ EMAILJS_SERVICE_ID: "synthetic-service", EMAILJS_TEMPLATE_ID: "synthetic-template",
+const config = emailConfiguration(name => ({ EMAILJS_SERVICE_ID: "synthetic-service", EMAILJS_TEMPLATE_ID: "template_2ov11np",
   EMAILJS_PUBLIC_KEY: "synthetic-public", EMAILJS_PRIVATE_KEY: "synthetic-private", SEND_EMAIL_HOOK_SECRET: `v1,whsec_${secret}`, RECOVERY_ALLOWED_ORIGINS: origin })[name]);
 
 function hookRequest(changes = {}, timestamp = new Date(), userChanges = {}) {
@@ -26,6 +26,7 @@ test("signed hook delivers only the configured recipient/link parameters through
   assert.equal(sent.options.redirect, "error");
   const body = JSON.parse(sent.options.body);
   assert.equal(body.accessToken, config.EMAILJS_PRIVATE_KEY);
+  assert.equal(body.template_id, "template_2ov11np");
   assert.deepEqual(Object.keys(body.template_params).sort(), ["recovery_url", "to_email"]);
   assert.equal(body.template_params.to_email, "synthetic@example.invalid");
   assert.equal(new URL(body.template_params.recovery_url).searchParams.get("token_hash"), hash);

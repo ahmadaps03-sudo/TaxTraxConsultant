@@ -108,10 +108,11 @@ do not replace it with an unapproved host.
 ### Acceptance status
 
 The activation implementation is complete for shared Dev. Final real
-invitation-email delivery QA is **deferred**, pending Ahmed's separate EmailJS
-invitation template/configuration described in [owner setup](shared-dev.md#first-time-setup-owner-invitation-setup).
+invitation-email delivery QA is **deferred/unverified** while Ahmed's EmailJS
+account/configuration is inaccessible; the template ID alone does not prove
+delivery. See [owner setup](shared-dev.md#first-time-setup-owner-invitation-setup).
 Offline and email-free shared-Dev checks do not establish inbox delivery or
-manual acceptance. Once configured, Hélio should explicitly resend to the
+manual acceptance. Once delivery is available, Hélio should explicitly resend to the
 retained approved, unconfirmed synthetic account, then Ahmed runs A1–A9 below
 and records actual email arrival and first-time setup results.
 
@@ -170,14 +171,15 @@ Owner record inspection is private in **Dev** SQL Editor; never select Productio
 
 Report C1–C8 PASS/FAIL, commit/browser/version and sanitized failures/screenshots.
 Never share scoped secrets or real personal data. Owner/admin review and approval
-now have a backend API; the desktop review UI remains unimplemented. Invitation
-email delivery acceptance remains separately dependent on Ahmed's EmailJS configuration.
+are available in Ahmed's desktop UI. Real invitation and welcome inbox delivery
+still require the checks below.
 
 ## Admin Client Portal access-request review (backend only)
 
 Complete owner review setup in [shared-dev.md](shared-dev.md), restart the app,
-and obtain the local website admin key privately. There is **no desktop review
-UI yet**. Use PowerShell/API calls below; API details and retry states are in
+and obtain the local website admin key privately. Ahmed's desktop Account
+Requests screen is now available. The PowerShell/API calls below exercise the
+original backend route; compatibility API details and retry states are in
 [admin-access-requests.md](admin-access-requests.md). Use synthetic data only.
 Prepare separate new requests for approval and rejection through Create account.
 Use a privately supplied deliverable synthetic inbox only for the invitation
@@ -201,7 +203,7 @@ Invoke-RestMethod -Uri $base -Method Patch -Headers $headers -ContentType 'appli
 | R3 | Repeat approve on R2. | Same account/profile/decision; no additional invitation. A timeout/503 requires detail inspection before retry, not an assumption of rollback. |
 | R4 | On a different pending request, change `$id` and `$body` action to `reject`; repeat reject, then try approve. | Rejected once/time stable; no Auth/profile/email. Repeated reject succeeds; approve returns 409. Public resubmission stays generic and does not reopen it. |
 | R5 | For an approved unconfirmed request with failed/unknown delivery, inspect its state, wait at least 60 seconds, then PATCH `resend_invite`. | Same user/profile; new invitation attempt/outcome. Immediate/concurrent resend returns 409. Approval/profile remain even if email fails. No automatic retry on uncertain delivery. |
-| R6 | When Ahmed's invitation template is configured, inspect the synthetic inbox and perform existing A3–A8 activation/login tests. Afterwards try explicit resend. | Invitation arrives and existing activation/first-password/fresh-login works. Confirmed account refuses resend with 409; approval/profile are unchanged. **Real email delivery acceptance is deferred until that configuration is ready**, not implied by automated tests. |
+| R6 | Once Ahmed's EmailJS delivery is available, inspect the synthetic inbox and perform existing A3–A8 activation/login tests. Afterwards try explicit resend. | Invitation arrives and existing activation/first-password/fresh-login works. Confirmed account refuses resend with 409; approval/profile are unchanged. Real inbox delivery is deferred and must not be marked PASS based on automated tests. |
 | R7 | Send malformed UUID, unknown action or extra `status`/`email` body fields; also send approved→reject or rejected→approve. | Invalid input returns 400/no action; conflicting decisions return 409/no transition. |
 
 Provisioning interruption, concurrent approve/reject and unrelated-account
@@ -210,6 +212,34 @@ failures/reset data or modify real accounts manually. Report R1–R7 PASS/FAIL,
 commit/browser/API tool and sanitized failures; never include keys, links or
 real personal data. Afterwards `Remove-Variable headers,secureKey` to discard
 the local test credential references.
+
+## Desktop Account Requests compatibility
+
+Current shared-Dev acceptance: D1 and D2 provisioning behavior passed. The D2
+invitation attempt was recorded as failed and no email arrived. Real invitation
+and welcome delivery (D6) is **deferred/unverified** until Ahmed's EmailJS
+account/configuration is accessible; do not mark email delivery PASS. The other
+manual checks below remain available and are not implied by D1/D2.
+
+Use only synthetic Dev requests and accounts. Complete [shared Dev setup](shared-dev.md)
+and open Ahmed's Account Requests screen in the desktop app. Use a deliverable
+synthetic inbox for D6; ask Hélio privately for credentials. The list reads
+`GET /api/admin/accounts`; the desktop's main process sends the existing admin
+key. Do not inspect real client records or Production.
+
+| ID | Action | Expected result / PASS criteria |
+| --- | --- | --- |
+| D1 | Open Account Requests and try Pending, Approved, Rejected, Suspended, All and search. | All request records appear, newest first. Four counts match their filter rows; search narrows locally. No secret/proof/link appears. |
+| D2 | Approve one new pending synthetic request, then refresh/repeat. | One marked Auth user and one active profile; one invitation attempt. Repeated approval creates no duplicate or extra invitation. |
+| D3 | Reject a separate pending request twice. | Rejected with stable decision time; no account/profile/invitation. |
+| D4 | Approve the rejected request, then repeat. | Safe first-time provisioning and one invitation attempt; no duplicate identity/profile/email attempt. |
+| D5 | Using an activated synthetic account, sign in; suspend it in desktop, then refresh the portal. | Portal access is denied immediately, including an already issued JWT. Other accounts remain unaffected. Reactivating restores eligibility, but the client must sign in again. No invitation is sent. |
+| D6 | Once Ahmed's EmailJS delivery is available, approve a deliverable synthetic request; inspect the invitation email, follow its link, set the first password, then inspect the welcome email. | Invitation uses the approved/setup wording and real link. Welcome arrives only after setup succeeds, uses truthful sign-in wording and no activation proof. Recovery still uses its separate reset template. This check remains deferred, not passed. |
+| D7 | Disconnect desktop/wrong key, send malformed or extra PATCH fields, and retry a same-state action. | Unauthorized requests return 401; invalid bodies return 400. Same-state requests are harmless. Responses are no-store. |
+
+Report D1–D7 PASS/FAIL, browser/desktop version, and sanitized screenshots/errors.
+Do not include admin keys, passwords or activation URLs. If EmailJS delivery is
+delayed or absent, record D6 separately from database/portal checks.
 
 ## Safe automated checks
 

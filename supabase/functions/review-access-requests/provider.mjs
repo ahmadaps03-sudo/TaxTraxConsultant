@@ -9,7 +9,9 @@ export function devReviewProvider(url, key, transport = fetch) {
   };
   return {
     async rpc(action, id, operation, userId) {
-      const result = await call("/rest/v1/rpc/admin_client_access_request", { p_action: action, p_id: id ?? null, p_operation: operation ?? null, p_user_id: userId ?? null });
+      const compatible = ["list_all", "set_approved", "suspend"].includes(action);
+      const route = action === "reject_pending" ? "admin_client_reject_pending" : compatible ? "admin_client_account" : "admin_client_access_request";
+      const result = await call(`/rest/v1/rpc/${route}`, { p_action: action, p_id: id ?? null, p_operation: operation ?? null, p_user_id: userId ?? null });
       if (!result.ok) throw new Error("Review unavailable.");
       return result.json();
     },

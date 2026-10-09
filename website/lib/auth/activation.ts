@@ -7,6 +7,7 @@ import { createAuthCookieState, secureCookieOptions } from "../supabase/cookies"
 import { getSupabaseConfiguration } from "../supabase/config";
 import { setPrivateNoStore } from "../supabase/cache";
 import { checkPassword } from "../validation";
+import { sendCompletedWelcomeEmail } from "./welcome";
 
 const linkCookie = "taxtrax-activation-link";
 const invalidLink = "This invitation is invalid or has expired. Contact the TaxTrax team.";
@@ -138,6 +139,7 @@ export async function setFirstPassword(request: Request) {
     }
     const revoked = await scoped.client.auth.signOut({ scope: "global" });
     const confirmed = !revoked.error && revocationStatus !== undefined && revocationStatus >= 200 && revocationStatus < 300;
+    if (confirmed) await sendCompletedWelcomeEmail(eligible.user.email);
     const response = safeResponse(confirmed ? 200 : 503, confirmed ? undefined : "Your password was set, but sign-out could not be confirmed. Try signing in again.");
     clearSetup(response, request.headers.get("cookie"));
     const portalName = getSupabaseConfiguration().cookieName;

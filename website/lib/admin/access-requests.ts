@@ -48,7 +48,7 @@ async function patchBody(request: Request) {
   finally { clearTimeout(timer); void reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
-export async function reviewAdminAccessRequest(request: Request) {
+async function reviewRequest(request: Request, accounts: boolean) {
   const denied = requireAdmin(request);
   if (denied) return response(denied.status, { ok: false, error: denied.status === 401 ? "Unauthorized" : "Admin review unavailable." });
   try {
@@ -62,13 +62,22 @@ export async function reviewAdminAccessRequest(request: Request) {
     if (request.url.length > 2048) throw new RequestError(400, "Invalid request.");
     let input;
     if (request.method === "GET") {
-      if (!url.searchParams.size) input = validatedInput({ action: "list" });
-      else if (url.searchParams.size === 1 && url.searchParams.has("id")) input = validatedInput({ action: "detail", id: url.searchParams.get("id") });
+      if (!url.searchParams.size) input = validatedInput({ action: accounts ? "list_all" : "list" });
+      else if (!accounts && url.searchParams.size === 1 && url.searchParams.has("id")) input = validatedInput({ action: "detail", id: url.searchParams.get("id") });
       else throw new RequestError(400, "Invalid request.");
     } else if (request.method === "PATCH") {
       if (url.searchParams.size) throw new RequestError(400, "Invalid request.");
-      input = validatedInput(await patchBody(request));
-      if (!["approve", "reject", "resend_invite"].includes(input.action)) throw new RequestError(400, "Invalid request.");
+      const body = await patchBody(request);
+      if (accounts) {
+        if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 2
+          || !Object.hasOwn(body, "id") || !Object.hasOwn(body, "status")
+          || !["approved", "rejected", "suspended"].includes((body as { status?: unknown }).status as string)) throw new RequestError(400, "Invalid request.");
+        const status = (body as { status: string }).status;
+        input = validatedInput({ id: (body as { id: unknown }).id, action: status === "approved" ? "set_approved" : status === "rejected" ? "reject_pending" : "suspend" });
+      } else {
+        input = validatedInput(body);
+        if (!["approve", "reject", "resend_invite"].includes(input.action)) throw new RequestError(400, "Invalid request.");
+      }
     } else throw new RequestError(405, "Method not allowed.");
     const configuration = getSupabaseConfiguration();
     const secret = process.env.ADMIN_ACCESS_REQUEST_SECRET;
@@ -84,9 +93,20 @@ export async function reviewAdminAccessRequest(request: Request) {
     if (result.status === 200 && data === undefined) throw new Error();
     const error = result.status === 404 ? "Request not found." : result.status === 409
       ? "Request cannot perform this action now. Refresh its details before retrying." : "Admin review unavailable. Refresh request details before retrying.";
-    return response(result.status, { ok: body.ok, ...(data === undefined ? {} : { data }), ...(body.ok ? {} : { error }) });
+    const accountData = accounts && data !== undefined ? (Array.isArray(data) ? data : [data]).map(row => {
+      if (typeof row.name !== "string" || typeof row.email !== "string" || typeof row.phone !== "string"
+        || (row.company !== null && typeof row.company !== "string")
+        || !["pending", "approved", "rejected", "suspended"].includes(row.status)
+        || typeof row.created_at !== "string" || (row.decided_at !== null && typeof row.decided_at !== "string")) throw new Error();
+      return { id: row.id, name: row.name, email: row.email, phone: row.phone, company: row.company,
+        status: row.status, createdAt: row.created_at, decidedAt: row.decided_at };
+    }) : undefined;
+    return response(result.status, { ok: body.ok, ...(data === undefined ? {} : { data: accounts ? (request.method === "GET" ? accountData : accountData?.[0]) : data }), ...(body.ok ? {} : { error }) });
   } catch (error) {
     const status = error instanceof RequestError ? error.status : 503;
     return response(status, { ok: false, error: error instanceof RequestError ? error.message : "Admin review unavailable. Refresh request details before retrying." });
   }
 }
+
+export const reviewAdminAccessRequest = (request: Request) => reviewRequest(request, false);
+export const reviewAdminAccount = (request: Request) => reviewRequest(request, true);

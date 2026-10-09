@@ -1,6 +1,6 @@
 # Admin access-request API (shared Dev)
 
-Backend only: Ahmed's desktop review UI is **not implemented**. Use the existing
+Ahmed's desktop review UI is implemented. Use the existing
 `x-admin-key` boundary; every valid key holder may review/approve/reject. This
 shared key identifies no individual, so there is deliberately no `decided_by`.
 Setup is in [shared-dev.md](shared-dev.md); manual QA is in [TESTING.md](TESTING.md).
@@ -11,8 +11,16 @@ Production is untouched and unconfigured.
 All calls target the existing website host, not Supabase directly. Send
 `x-admin-key` from Electron's main process. Responses are private/no-store with
 no cookies, credentials, invitation proofs or links. The existing main-process
-path/method allowlist accepts `/api/admin/accessrequests` and `?id=<UUID>`; no new
-navigation, broad IPC/network permissions or frontend code is added here.
+path/method allowlist accepts `/api/admin/accessrequests`, `?id=<UUID>`, and
+`/api/admin/accounts`; no broad IPC/network permissions are added here.
+
+The desktop uses GET `/api/admin/accounts` for **all** request records, newest
+first, and PATCH `/api/admin/accounts` with exactly `{"id":"<UUID>",
+"status":"approved|rejected|suspended"}`. The response is `{ "ok": true,
+"data": [...] }` for GET. Each record contains only `id`, `name`, `email`,
+`phone`, `company`, `status`, `createdAt`, and `decidedAt` (nullable), using
+those exact camelCase names. The desktop filters/searches locally. PATCH
+returns the same safe record shape as `data` for the updated row.
 
 | Method/path | Input | Success |
 | --- | --- | --- |
@@ -41,7 +49,7 @@ Detail fields are the original request fields plus `decided_at`,
 `invitation_status`, `invitation_attempted_at`, `invitation_sent_at`.
 Internal operation tokens/leases are never returned.
 
-- `status`: pending / approved / rejected. Approved records the owner's decision,
+- `status`: pending / approved / rejected / suspended. Approved records the owner's decision,
   not proof of successful invitation or completed activation.
 - `provisioning_status`: not_started / processing / ready / error / blocked.
 - `invitation_status`: not_attempted / attempting / sent / failed / unknown.
@@ -71,7 +79,9 @@ password recovery handles interrupted setup after verification. Do not blindly
 retry resend on a transport error because previous delivery may have succeeded.
 
 Reject records the decision time and creates/modifies no Auth user/profile or
-email. Rejection is final here; conflicting approve/reject returns 409. Public
+email. The existing `/api/admin/accessrequests` treats rejection as final;
+the desktop compatibility endpoint may explicitly approve a rejected request.
+Public
 resubmission retains the original rejected row and returns generic success,
 without disclosing the decision or creating another request.
 
@@ -85,14 +95,23 @@ and ordinary Supabase clients cannot review, approve, reject or resend. Table
 access remains default-deny; no general service-role table grants are added.
 
 `npm run test:admin-access-requests:shared-dev` uses disposable synthetic rows,
-real Dev database/Auth operations and real HTTP list/detail/reject authorization.
-Its approval worker uses the same runtime core/provider with only invitation
-delivery replaced by Supabase no-email proof generation/failure injection. No
-runtime test switch exists. It does not send email or reset shared data; cleanup
-removes only its own marked rows/identities. Real invitation-email delivery
-acceptance still depends on Ahmed's separate EmailJS invitation template and
-Dev configuration, and remains a manual prerequisite.
+real Dev database/Auth operations and HTTP authorization. Its original review
+worker uses no-email invitation proof generation/failure injection. Desktop
+compatibility HTTP approval uses `.invalid` synthetic addresses and can trigger
+EmailJS delivery attempts, so the test is owner-only and may consume free quota.
+It never resets shared data; cleanup removes only its own marked rows/identities.
+Real invitation/welcome inbox delivery is deferred and unverified until Ahmed's
+EmailJS account/configuration is accessible. A Dev approval proved account and
+active-profile provisioning but recorded a failed invitation attempt; no email
+arrived. Do not count that as delivery acceptance.
 
-Deferred: desktop UI, individual admin identities/audit attribution, reopening
-rejections, rejection notifications/reasons, history/pagination UI, background
+Desktop transitions are pending→approved/rejected, approved→suspended,
+suspended→approved, and rejected→approved. Suspension changes the profile to
+ineligible and deletes its provider sessions/refresh tokens in the same database
+transaction; old access JWTs remain denied by RLS. Reactivation restores
+eligibility only for the linked account and requires a new login. Neither action
+recreates users/profiles or sends an invitation.
+
+Deferred: individual admin identities/audit attribution, rejection
+notifications/reasons, history/pagination UI, background
 workers/automatic resend, and Production deployment/hardening.

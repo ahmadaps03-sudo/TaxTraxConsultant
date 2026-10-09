@@ -18,7 +18,36 @@ export function emailConfiguration(environment) {
       if ((!local && url.protocol !== "https:") || url.origin !== origin || url.username || url.password) activationConfigured = false;
     } catch { activationConfigured = false; }
   }
-  return { ...config, origins, inviteTemplate, activationOrigins: activationConfigured ? activationOrigins : [] };
+  return { ...config, origins, inviteTemplate, activationOrigins: activationConfigured ? activationOrigins : [], welcomeSecret: environment("WELCOME_EMAIL_SECRET") };
+}
+
+export function accountTemplateParams(kind, toEmail, buttonUrl) {
+  if (!["activation", "welcome"].includes(kind) || typeof toEmail !== "string" || typeof buttonUrl !== "string") throw new Error("Invalid email.");
+  const activation = kind === "activation";
+  return {
+    to_email: toEmail,
+    subject: activation ? "Your TaxTrax account is approved — set it up" : "Welcome to TaxTrax",
+    preheader: activation ? "Verify your email and choose your first password." : "Your Client Portal setup is complete.",
+    badge_text: activation ? "ACCOUNT APPROVED" : "WELCOME",
+    badge_bg: "#edf5f1", badge_border: "#bed8ca", badge_color: "#24543d",
+    heading: activation ? "Set up your Client Portal account" : "Your Client Portal is ready",
+    message: activation ? "Your access request has been approved. Verify your email and choose a password to finish setting up your account. You can sign in after setup is complete."
+      : "Your account setup is complete. You can now sign in to the Client Portal with the password you created.",
+    button_label: activation ? "Set up account" : "Sign in",
+    button_url: buttonUrl,
+    button_note: activation ? "This secure setup link expires. If it no longer works, contact the TaxTrax team." : "Use the email address you verified during setup.",
+    step1_bg: "#edf5f1", step1_fg: "#24543d",
+    step1_title: activation ? "Verify your email" : "Email verified",
+    step1_desc: activation ? "Open the secure setup link above." : "Your invitation was verified.",
+    step2_bg: "#edf5f1", step2_fg: "#24543d",
+    step2_title: activation ? "Choose a password" : "Password created",
+    step2_desc: activation ? "Create your private password on the secure setup page." : "Your first password has been set.",
+    step3_bg: "#edf5f1", step3_fg: "#24543d",
+    step3_title: activation ? "Sign in" : "Access your portal",
+    step3_desc: activation ? "Return to the Client Portal and sign in." : "Sign in with your verified email and password.",
+    notice: activation ? "TaxTrax will never ask you to email your password." : "TaxTrax will never ask you to email your password.",
+    footer_note: activation ? "If you did not request access, contact the TaxTrax team." : "If you did not set up this account, contact the TaxTrax team.",
+  };
 }
 
 async function boundedPayload(request) {
@@ -60,9 +89,9 @@ export async function sendRecoveryEmail(request, config, Webhook, deliver = fetc
     || typeof email?.token_hash !== "string" || !/^[a-f0-9]{40,128}$/.test(email.token_hash)) return fail(400);
   if (invite) {
     if (user.email_confirmed_at || user.app_metadata?.taxtrax_client_invitation !== "taxtrax-client-invite-v1") return fail(400);
-    if (typeof config.inviteTemplate !== "string" || !config.inviteTemplate || config.inviteTemplate === config.EMAILJS_TEMPLATE_ID || config.inviteTemplate.length > 4096 || !config.activationOrigins.length) return fail(503);
+    if (config.inviteTemplate !== "template_p5rfdor" || !config.activationOrigins.length) return fail(503);
     if (!config.activationOrigins.some(origin => email.redirect_to === `${origin}/api/auth/activation/callback`)) return fail(400);
-  } else if (typeof user.email_confirmed_at !== "string" || !Number.isFinite(Date.parse(user.email_confirmed_at))
+  } else if (config.EMAILJS_TEMPLATE_ID !== "template_2ov11np" || typeof user.email_confirmed_at !== "string" || !Number.isFinite(Date.parse(user.email_confirmed_at))
     || !config.origins.some(origin => email.redirect_to === `${origin}/api/auth/recovery/callback`)) return fail(400);
   const recovery = new URL(email.redirect_to);
   recovery.searchParams.set("token_hash", email.token_hash);
@@ -73,9 +102,42 @@ export async function sendRecoveryEmail(request, config, Webhook, deliver = fetc
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ service_id: config.EMAILJS_SERVICE_ID, template_id: invite ? config.inviteTemplate : config.EMAILJS_TEMPLATE_ID,
         user_id: config.EMAILJS_PUBLIC_KEY, accessToken: config.EMAILJS_PRIVATE_KEY,
-        template_params: invite ? { to_email: user.email, activation_url: recovery.href } : { to_email: user.email, recovery_url: recovery.href } }),
+        template_params: invite ? accountTemplateParams("activation", user.email, recovery.href) : { to_email: user.email, recovery_url: recovery.href } }),
     });
     if (!response.ok) return fail(503);
+    return new Response("{}", { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  } catch { return fail(503); }
+}
+
+export async function sendWelcomeEmail(request, config, deliver = fetch) {
+  const fail = status => new Response('{"error":"Welcome email unavailable."}', { status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  if (request.method !== "POST") return fail(405);
+  if (request.headers.get("x-taxtrax-email-action") !== "welcome") return fail(403);
+  const secret = config.welcomeSecret;
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(secret ?? "") || config.inviteTemplate !== "template_p5rfdor" || !config.activationOrigins.length) return fail(503);
+  const supplied = request.headers.get("authorization")?.match(/^Bearer ([A-Za-z0-9_-]{43,128})$/)?.[1];
+  if (!supplied || supplied.length !== secret.length) return fail(403);
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const given = await crypto.subtle.importKey("raw", encoder.encode(supplied), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  const message = encoder.encode("TaxTrax completed account setup");
+  if (!await crypto.subtle.verify("HMAC", given, await crypto.subtle.sign("HMAC", key, message), message)) return fail(403);
+  if (request.headers.get("content-type") !== "application/json") return fail(415);
+  let payload;
+  try { payload = JSON.parse(await boundedPayload(request)); } catch { return fail(400); }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 1
+    || typeof payload.to_email !== "string" || payload.to_email.length > 254
+    || /[\u0000-\u001f\u007f-\u009f]/u.test(payload.to_email)
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.to_email)) return fail(400);
+  try {
+    const result = await deliver("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST", redirect: "error", signal: AbortSignal.timeout(4000), headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ service_id: config.EMAILJS_SERVICE_ID, template_id: config.inviteTemplate,
+        user_id: config.EMAILJS_PUBLIC_KEY, accessToken: config.EMAILJS_PRIVATE_KEY,
+        template_params: accountTemplateParams("welcome", payload.to_email, `${config.activationOrigins[0]}/portal`) }),
+    });
+    if (!result.ok) return fail(503);
     return new Response("{}", { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
   } catch { return fail(503); }
 }

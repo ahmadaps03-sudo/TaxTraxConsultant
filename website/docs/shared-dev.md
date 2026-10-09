@@ -72,8 +72,8 @@ The migrations are `20261008000100_client_access_requests.sql` and
 skips submissions for existing Auth account emails without exposing the result. RLS is
 enabled with no client policies/grants; even `service_role` has no direct table
 CRUD. The trusted SQL owner can inspect requests privately in Dev SQL Editor.
-The separate review migration/API below extends decision states; the desktop
-review UI is not implemented. Public submissions still start pending only.
+The separate review migrations/API extend decision states; Ahmed's desktop
+review UI lists all statuses. Public submissions still start pending only.
 Requests and consent are unverified visitor claims, not proof of identity.
 
 If the migration is not yet applied, the owner must check that the repository is
@@ -118,7 +118,7 @@ schemas/data and removes only its own fixtures. Ahmed's checks are in `TESTING.m
 
 ## Admin access-request review setup (owner only)
 
-The backend review API exists; the desktop review UI is not implemented. Its
+The backend review API and desktop review UI exist. Their
 [API contract](admin-access-requests.md) is separate from setup/manual QA.
 Every existing admin-key holder may decide requests; there are no staff roles.
 Keep `ADMIN_API_KEY` private and unchanged in the website/Electron settings.
@@ -141,8 +141,20 @@ The owner helper pins `dbcakdqthnamgjfkkxzn`, sets only the new review secret,
 deploys only `review-access-requests`, and preserves unrelated `.env.local`
 values. It needs authenticated owner CLI access, not Docker. Restart Next.js.
 It does not change submission, recovery, activation, EmailJS or Production
-settings. Approval attempts invitations through the existing signed hook;
-real invitation-email acceptance still depends on Ahmed's invitation template.
+settings. Approval attempts invitations through the existing signed hook.
+
+For the desktop's all-status `/api/admin/accounts` API, apply only
+`20261009000200_admin_accounts_compatibility.sql` and
+`20261009000300_admin_accounts_reject_pending.sql` to Dev after reviewing the
+dry-run above, then deploy only `review-access-requests` to Dev:
+
+```powershell
+.\node_modules\.bin\supabase functions deploy review-access-requests --workdir .. --project-ref dbcakdqthnamgjfkkxzn --no-verify-jwt --use-api
+```
+
+This adds all-status newest-first listing, rejected-request approval,
+suspension with session revocation, and reactivation. The original
+`/api/admin/accessrequests` API remains available.
 
 Safe offline checks: `npm run test:admin-access-requests`. Owner-only
 `npm run test:admin-access-requests:shared-dev` exercises synthetic disposable
@@ -158,7 +170,8 @@ credentials belong to the Dev `send-recovery-email` Edge Function, not browser
 code or website authentication runtime. The empty additional names in
 `.env.example` are owner setup reminders; Ahmed does not need EmailJS keys.
 
-Reuse Ahmed's intended Dev EmailJS service and recovery template. Set the
+Reuse Ahmed's intended Dev EmailJS service and recovery template
+`template_2ov11np`. Set the
 template's **To Email** field to `{{to_email}}` and its reset-link target to
 `{{recovery_url}}`; putting the recipient only in the message body is not enough.
 The deployed service/template IDs must match those selected in EmailJS. Allow
@@ -291,27 +304,49 @@ against shared Dev as part of ordinary login/logout testing.
 
 ## First-time setup: owner invitation setup
 
-The activation implementation is complete for the shared Dev scope. Final real
-invitation-email delivery acceptance is **deferred** until Ahmed configures the
-separate invitation template in his EmailJS account and its Dev hook settings
-below are verified. Do not treat automated proof/setup tests as inbox delivery
-acceptance. Recovery keeps its existing template and behavior.
+The activation implementation is complete for shared Dev. The invitation
+template ID is configured in Dev, but the Ahmed-owned EmailJS account/configuration
+is not currently accessible for verification. A Dev approval provisioned an
+active client while its invitation attempt failed and no email arrived. Real
+invitation and welcome inbox delivery remains deferred/unverified, not passed.
+Automated proof/setup tests do not prove delivery.
+Recovery keeps its existing template and behavior.
 
 Keep the existing `send-recovery-email` function name, hook URL, signing secret,
-EmailJS service and recovery template. Create a **separate invitation template**
-within the available free EmailJS quota: **To Email** = `{{to_email}}`, link target
-= `{{activation_url}}`. Do not rename or reuse the recovery template. Add these
-Dev Edge Function secrets privately (never website runtime or `NEXT_PUBLIC_*`):
+EmailJS service and recovery template. Ahmed's separate Welcome + Account Creation
+template is `template_p5rfdor` and is reused for approval invitations and welcome
+after successful first-password setup. Its **To Email** = `{{to_email}}` and
+button link = `{{button_url}}`. The exact account-template keys are `to_email`,
+`subject`, `preheader`, `badge_text`, `badge_bg`, `badge_border`, `badge_color`,
+`heading`, `message`, `button_label`, `button_url`, `button_note`, `step1_bg`,
+`step1_fg`, `step1_title`, `step1_desc`, `step2_bg`, `step2_fg`, `step2_title`,
+`step2_desc`, `step3_bg`, `step3_fg`, `step3_title`, `step3_desc`, `notice`,
+`footer_note`. The signed hook sends the invitation only after approval; its
+button URL contains the real Supabase activation proof. The separate welcome
+message is attempted only after password setup and confirmed global sign-out.
+The recovery template retains `to_email` and `recovery_url`.
+
+Dev Edge Function secrets include:
 
 ```text
 EMAILJS_INVITE_TEMPLATE_ID
 ACTIVATION_ALLOWED_ORIGINS
+WELCOME_EMAIL_SECRET
 ```
 
-Set the activation origin allowlist to `http://localhost:3000`, redeploy the
-existing function using the owner command above, and preserve all recovery
-settings. Missing/invalid invitation configuration refuses invitations without
-disabling recovery. Add the exact
+Set the activation origin allowlist to `http://localhost:3000` and preserve all
+recovery settings. Owner setup from `website` pins Dev, configures the two
+public template IDs and a separate private `WELCOME_EMAIL_SECRET`, deploys only
+the existing email function and updates ignored `.env.local` without printing
+credentials:
+
+```powershell
+npm run auth:welcome:setup:shared-dev
+```
+
+Keep EmailJS service/public/private keys and the signed Send Email hook secret
+in the Dev Edge Function only. Missing/invalid invitation configuration refuses
+invitations without disabling recovery. Add the exact
 `http://localhost:3000/api/auth/activation/callback` entry in Dev **Authentication
 > URL Configuration**. Public signup must remain disabled. No new migration,
 Production changes or paid feature is required. Remote setup is not performed
@@ -345,7 +380,7 @@ Delivery failure retains the approved unconfirmed account for inspection/retry;
 the command does not claim success. Existing identities are never overwritten
 or implicitly reinvited. No approval is changed by invitation acceptance.
 If a prior delivery attempt already created the synthetic account, keep that
-account and use explicit resend after Ahmed's template/configuration is ready;
+account and use explicit resend after inspecting its delivery state;
 do not run create again or mark the account confirmed to bypass invitation QA.
 
 To explicitly resend, use a private JSON file with **only** `email` and

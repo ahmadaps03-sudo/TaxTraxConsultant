@@ -30,6 +30,7 @@
     "test:access-requests": "node --test scripts/access-requests.test.mjs",
     "test:access-requests:shared-dev": "node --test scripts/access-requests-shared-dev.test.mjs",
     "admin:access-requests:setup:shared-dev": "node scripts/setup-admin-access-requests-dev.mjs",
+    "auth:welcome:setup:shared-dev": "node scripts/setup-welcome-email-dev.mjs",
     "test:admin-access-requests": "node --test scripts/admin-access-requests.test.mjs",
     "test:admin-access-requests:shared-dev": "node --test scripts/admin-access-requests-shared-dev.test.mjs",
     "test:authz": "node --test scripts/client-profiles-authz.test.mjs",

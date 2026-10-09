@@ -12,7 +12,7 @@ import { sessionTestBuild } from "./lib/session-test-build.mjs";
 
 const run = promisify(execFile);
 const namespace = randomUUID();
-const labels = ["approve", "reject", "race", "unrelated", "interrupted", "committed", "failed", "confirmed", "unknown", "suspended", "deleted"];
+const labels = ["approve", "reject", "race", "unrelated", "interrupted", "committed", "failed", "confirmed", "unknown", "suspended", "deleted", "desktop_pending", "desktop_reject", "reopen", "lifecycle"];
 const fixtures = Object.fromEntries(labels.map(label => [label, { id: randomUUID(), email: `admin-review-${label}.${namespace}@taxtrax.example.invalid`, name: `Synthetic Admin ${label}` }]));
 const adminKey = randomBytes(32).toString("base64url");
 const literal = value => `'${value.replaceAll("'", "''")}'`;
@@ -66,7 +66,7 @@ before(async () => {
       return { outcome: "sent", userId: proof.data.user.id };
     },
   };
-  build = await sessionTestBuild(["lib/admin/access-requests.ts", "lib/api.ts", "app/api/admin/accessrequests/route.ts"]);
+  build = await sessionTestBuild(["lib/admin/access-requests.ts", "lib/api.ts", "app/api/admin/accessrequests/route.ts", "app/api/admin/accounts/route.ts"]);
   origin = await build.start({ ADMIN_API_KEY: adminKey, ADMIN_ACCESS_REQUEST_SECRET: secret, SUPABASE_URL: devUrl, SUPABASE_PUBLISHABLE_KEY: keys.publishableKey }, { authOrigin: true });
 });
 
@@ -113,11 +113,112 @@ test("unauthorized HTTP/action requests and public submission capability cannot 
 test("default-deny grants persist and ordinary clients cannot call privileged review RPC", async () => {
   const roles = await query(`select role, has_table_privilege(role,'public.client_access_requests','SELECT') as read,
     has_table_privilege(role,'public.client_access_requests','UPDATE') as change,
-    has_function_privilege(role,'public.admin_client_access_request(text,uuid,uuid,uuid)','EXECUTE') as review
+    has_function_privilege(role,'public.admin_client_access_request(text,uuid,uuid,uuid)','EXECUTE') as review,
+    has_function_privilege(role,'public.admin_client_account(text,uuid,uuid,uuid)','EXECUTE') as account,
+    has_function_privilege(role,'public.admin_client_reject_pending(text,uuid,uuid,uuid)','EXECUTE') as reject
     from (values ('anon'),('authenticated'),('service_role')) roles(role)`);
-  for (const role of roles) assert.deepEqual(role, { role: role.role, read: false, change: false, review: role.role === "service_role" });
+  for (const role of roles) assert.deepEqual(role, { role: role.role, read: false, change: false,
+    review: role.role === "service_role", account: role.role === "service_role", reject: role.role === "service_role" });
   const client = devClient(keys.publishableKey);
   assert.ok((await client.rpc("admin_client_access_request", { p_action: "list" })).error, "Anonymous client obtained review privileges");
+});
+
+const desktopPatch = (label, status) => fetch(`${origin}/api/admin/accounts`, {
+  method: "PATCH", headers: { "x-admin-key": adminKey, "Content-Type": "application/json" },
+  body: JSON.stringify({ id: fixtures[label].id, status }),
+});
+
+test("desktop GET lists every status newest first using exact camelCase DTO", async () => {
+  assert.equal((await fetch(`${origin}/api/admin/accounts`)).status, 401);
+  const rejected = await desktopPatch("desktop_reject", "rejected");
+  assert.equal(rejected.status, 200);
+  const approved = await action("approve", "approve");
+  assert.equal(approved.status, 200);
+  const listed = await fetch(`${origin}/api/admin/accounts`, { headers: { "x-admin-key": adminKey } });
+  assert.equal(listed.status, 200);
+  assert.match(listed.headers.get("cache-control"), /no-store/);
+  const rows = (await listed.json()).data;
+  assert.ok(rows.length >= labels.length);
+  assert.ok(rows.every((row, index) => !index || Date.parse(rows[index - 1].createdAt) >= Date.parse(row.createdAt)));
+  const own = rows.filter(row => Object.values(fixtures).some(fixture => fixture.id === row.id));
+  assert.equal(own.length, labels.length);
+  assert.ok(own.some(row => row.status === "pending") && own.some(row => row.status === "approved") && own.some(row => row.status === "rejected"));
+  for (const row of own) assert.deepEqual(Object.keys(row).sort(), ["id", "name", "email", "phone", "company", "status", "createdAt", "decidedAt"].sort());
+  assert.equal(own.filter(row => row.status === "pending").length, labels.length - 2);
+});
+
+test("desktop pending decisions, rejected approval and repeats preserve identity/invitation uniqueness", async () => {
+  const pending = await desktopPatch("desktop_pending", "approved");
+  assert.equal(pending.status, 200);
+  assert.equal((await pending.json()).data.status, "approved");
+  const before = await detail("desktop_pending");
+  assert.equal((await desktopPatch("desktop_pending", "approved")).status, 200);
+  assert.deepEqual(await detail("desktop_pending"), before);
+  assert.equal((await desktopPatch("desktop_pending", "rejected")).status, 409);
+
+  const first = await desktopPatch("reopen", "rejected");
+  assert.equal(first.status, 200);
+  assert.equal((await desktopPatch("reopen", "rejected")).status, 200);
+  const reopened = await desktopPatch("reopen", "approved");
+  assert.equal(reopened.status, 200);
+  assert.equal((await reopened.json()).data.status, "approved");
+  const approvedRow = await detail("reopen");
+  assert.equal((await desktopPatch("reopen", "approved")).status, 200);
+  assert.deepEqual(await detail("reopen"), approvedRow);
+  const duplicates = await query(`select count(*)::int as count from auth.users where raw_app_meta_data ->> 'taxtrax_access_request_id' = ${literal(fixtures.reopen.id)}`);
+  assert.deepEqual(duplicates, [{ count: 1 }]);
+  assert.equal((await desktopPatch("reopen", "rejected")).status, 409);
+});
+
+test("desktop suspension revokes sessions and RLS; reactivation requires a fresh login", async () => {
+  const approved = await desktopPatch("lifecycle", "approved");
+  assert.equal(approved.status, 200);
+  const userId = (await detail("lifecycle")).provisioned_user_id;
+  const password = `SyntheticDev-${namespace}-Safe42!`;
+  assert.ok(!(await admin.auth.admin.updateUserById(userId, { email_confirm: true, password })).error);
+  const client = devClient(keys.publishableKey);
+  const signIn = await client.auth.signInWithPassword({ email: fixtures.lifecycle.email, password });
+  assert.ok(!signIn.error && signIn.data.session);
+  const jwt = signIn.data.session.access_token;
+  const sessionId = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString()).session_id;
+  const cookieName = `sb-${new URL(devUrl).hostname.split(".")[0]}-auth-token`;
+  const cookieValue = `base64-${Buffer.from(JSON.stringify(signIn.data.session)).toString("base64url")}`;
+  const cookie = cookieValue.length <= 3180 ? `${cookieName}=${cookieValue}` :
+    Array.from({ length: Math.ceil(cookieValue.length / 3180) }, (_, index) => `${cookieName}.${index}=${cookieValue.slice(index * 3180, (index + 1) * 3180)}`).join("; ");
+  const portal = () => fetch(`${origin}/portal`, { headers: { cookie }, cache: "no-store" });
+  const authorizedPage = await (await portal()).text();
+  assert.match(authorizedPage, new RegExp(userId));
+  assert.ok(!authorizedPage.includes(jwt) && !authorizedPage.includes(signIn.data.session.refresh_token));
+  const profileFor = () => fetch(`${devUrl}/rest/v1/client_profiles?select=user_id`, { headers: {
+    apikey: keys.publishableKey, Authorization: `Bearer ${jwt}` }, cache: "no-store" });
+  assert.deepEqual(await (await profileFor()).json(), [{ user_id: userId }]);
+  const first = await desktopPatch("lifecycle", "suspended");
+  assert.equal(first.status, 200);
+  assert.equal((await first.json()).data.status, "suspended");
+  const invitationAttemptedAt = (await detail("lifecycle")).invitation_attempted_at;
+  assert.equal((await desktopPatch("lifecycle", "suspended")).status, 200);
+  assert.equal((await desktopPatch("lifecycle", "rejected")).status, 409);
+  const suspendedList = await fetch(`${origin}/api/admin/accounts`, { headers: { "x-admin-key": adminKey } });
+  assert.equal((await suspendedList.json()).data.find(row => row.id === fixtures.lifecycle.id).status, "suspended");
+  assert.deepEqual(await (await profileFor()).json(), []);
+  assert.doesNotMatch(await (await portal()).text(), new RegExp(userId));
+  assert.equal((await admin.from("client_profiles").select("status").eq("user_id", userId).single()).data.status, "suspended");
+  assert.equal((await query(`select count(*)::int as count from auth.sessions where user_id = ${literal(userId)}::uuid`))[0].count, 0);
+  assert.equal((await query(`select count(*)::int as count from auth.refresh_tokens where session_id = ${literal(sessionId)}::uuid`))[0].count, 0);
+  const restored = await desktopPatch("lifecycle", "approved");
+  assert.equal(restored.status, 200);
+  assert.equal((await restored.json()).data.status, "approved");
+  assert.equal((await desktopPatch("lifecycle", "approved")).status, 200);
+  assert.equal((await detail("lifecycle")).invitation_attempted_at, invitationAttemptedAt);
+  assert.deepEqual(await (await profileFor()).json(), []);
+  assert.doesNotMatch(await (await portal()).text(), new RegExp(userId));
+  const identityCount = await query(`select count(*)::int as count from auth.users where raw_app_meta_data ->> 'taxtrax_access_request_id' = ${literal(fixtures.lifecycle.id)}`);
+  assert.deepEqual(identityCount, [{ count: 1 }]);
+  const nextClient = devClient(keys.publishableKey);
+  const fresh = await nextClient.auth.signInWithPassword({ email: fixtures.lifecycle.email, password });
+  assert.ok(!fresh.error && fresh.data.session);
+  assert.deepEqual((await nextClient.from("client_profiles").select("user_id")).data, [{ user_id: userId }]);
+  await nextClient.auth.signOut({ scope: "local" });
 });
 
 test("approval creates one unconfirmed marked identity and active profile before no-email invitation proof", async () => {

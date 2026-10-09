@@ -41,7 +41,8 @@ before(async () => {
     "components/portal/ActivationForm.tsx", "app/portal/activate/page.tsx",
     ...["callback", "verify", "password"].map(route => `app/api/auth/activation/${route}/route.ts`),
   ], { realPortal: true });
-  origin = await build.start({ SUPABASE_URL: `https://${devRef}.supabase.co`, SUPABASE_PUBLISHABLE_KEY: keys.publishableKey }, { authOrigin: true });
+  origin = await build.start({ SUPABASE_URL: `https://${devRef}.supabase.co`, SUPABASE_PUBLISHABLE_KEY: keys.publishableKey,
+    WELCOME_EMAIL_SECRET: "" }, { authOrigin: true });
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext();
   page = await context.newPage();

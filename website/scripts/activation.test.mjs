@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import test, { after, before } from "node:test";
 import { Webhook } from "standardwebhooks";
-import { emailConfiguration, sendRecoveryEmail } from "../../supabase/functions/send-recovery-email/core.mjs";
+import { accountTemplateParams, emailConfiguration, sendRecoveryEmail, sendWelcomeEmail } from "../../supabase/functions/send-recovery-email/core.mjs";
 import { issueDevInvitation, invitationInput, invitationMarker } from "./invite-client-dev.mjs";
 import { redactRecoveryLog } from "./dev.mjs";
 import { sessionTestBuild } from "./lib/session-test-build.mjs";
+import { welcomeEnvironment } from "./setup-welcome-email-dev.mjs";
 
 const origin = "http://localhost:3000";
 const hash = "b".repeat(64);
 const secret = randomBytes(32).toString("base64");
-const environment = { EMAILJS_SERVICE_ID: "synthetic-service", EMAILJS_TEMPLATE_ID: "synthetic-recovery-template",
-  EMAILJS_INVITE_TEMPLATE_ID: "synthetic-invite-template", EMAILJS_PUBLIC_KEY: "synthetic-public", EMAILJS_PRIVATE_KEY: "synthetic-private",
-  SEND_EMAIL_HOOK_SECRET: `v1,whsec_${secret}`, RECOVERY_ALLOWED_ORIGINS: origin, ACTIVATION_ALLOWED_ORIGINS: origin };
+const environment = { EMAILJS_SERVICE_ID: "synthetic-service", EMAILJS_TEMPLATE_ID: "template_2ov11np",
+  EMAILJS_INVITE_TEMPLATE_ID: "template_p5rfdor", EMAILJS_PUBLIC_KEY: "synthetic-public", EMAILJS_PRIVATE_KEY: "synthetic-private",
+  SEND_EMAIL_HOOK_SECRET: `v1,whsec_${secret}`, RECOVERY_ALLOWED_ORIGINS: origin, ACTIVATION_ALLOWED_ORIGINS: origin,
+  WELCOME_EMAIL_SECRET: "synthetic_welcome_secret_123456789012345678901234567890" };
 const config = emailConfiguration(name => environment[name]);
 
 function hookRequest(changes = {}, userChanges = {}, stale = false) {
@@ -31,10 +33,34 @@ test("signed invite uses a separate template and only recipient/activation-link 
   assert.equal(result.status, 200);
   assert.equal(sent.url, "https://api.emailjs.com/api/v1.0/email/send");
   assert.equal(sent.body.template_id, environment.EMAILJS_INVITE_TEMPLATE_ID);
-  assert.deepEqual(Object.keys(sent.body.template_params).sort(), ["activation_url", "to_email"]);
-  assert.equal(new URL(sent.body.template_params.activation_url).searchParams.get("type"), "invite");
-  assert.equal(new URL(sent.body.template_params.activation_url).searchParams.get("token_hash"), hash);
+  assert.deepEqual(Object.keys(sent.body.template_params).sort(), ["to_email", "subject", "preheader", "badge_text", "badge_bg", "badge_border", "badge_color", "heading", "message", "button_label", "button_url", "button_note", "step1_bg", "step1_fg", "step1_title", "step1_desc", "step2_bg", "step2_fg", "step2_title", "step2_desc", "step3_bg", "step3_fg", "step3_title", "step3_desc", "notice", "footer_note"].sort());
+  assert.equal(new URL(sent.body.template_params.button_url).searchParams.get("type"), "invite");
+  assert.equal(new URL(sent.body.template_params.button_url).searchParams.get("token_hash"), hash);
   assert.equal(await result.text(), "{}");
+});
+
+test("welcome uses the same exact template keys with truthful post-setup wording", async () => {
+  let sent;
+  const request = new Request("https://synthetic.example.invalid/hook", { method: "POST", headers: {
+    "Content-Type": "application/json", "x-taxtrax-email-action": "welcome",
+    Authorization: `Bearer ${environment.WELCOME_EMAIL_SECRET}` }, body: JSON.stringify({ to_email: "invite@example.invalid" }) });
+  const result = await sendWelcomeEmail(request, config, async (_url, options) => { sent = JSON.parse(options.body); return new Response("OK"); });
+  assert.equal(result.status, 200);
+  assert.equal(sent.template_id, "template_p5rfdor");
+  assert.deepEqual(Object.keys(sent.template_params).sort(), Object.keys(accountTemplateParams("activation", "invite@example.invalid", `${origin}/portal`)).sort());
+  assert.equal(sent.template_params.button_url, `${origin}/portal`);
+  assert.match(sent.template_params.message, /setup is complete/);
+  assert.doesNotMatch(sent.template_params.message, /choose a password/);
+  const forged = new Request(request.url, { method: "POST", headers: { ...Object.fromEntries(request.headers), Authorization: "Bearer synthetic_invalid_welcome_secret_123456789012345678901234" }, body: JSON.stringify({ to_email: "invite@example.invalid" }) });
+  assert.equal((await sendWelcomeEmail(forged, config, () => { throw new Error("Must not deliver"); })).status, 403);
+});
+
+test("owner welcome setup preserves unrelated Dev values and refuses remote projects", () => {
+  const original = "SUPABASE_URL=https://dbcakdqthnamgjfkkxzn.supabase.co\nADMIN_API_KEY=synthetic-admin\n";
+  const updated = welcomeEnvironment(original, environment.WELCOME_EMAIL_SECRET);
+  assert.match(updated, /ADMIN_API_KEY=synthetic-admin/);
+  assert.equal(welcomeEnvironment(updated, environment.WELCOME_EMAIL_SECRET), updated);
+  assert.throws(() => welcomeEnvironment(original.replace("dbcakdqthnamgjfkkxzn", "production-project"), environment.WELCOME_EMAIL_SECRET));
 });
 
 test("invites require signed, unconfirmed, owner-marked identities and exact redirects", async () => {
@@ -160,7 +186,7 @@ const sessionValue = `base64-${Buffer.from(JSON.stringify({ access_token: "synth
   expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: "synthetic-user" } })).toString("base64url")}`;
 
 before(async () => {
-  oldEnvironment = { AUTH_ORIGIN: process.env.AUTH_ORIGIN, SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY };
+  oldEnvironment = { AUTH_ORIGIN: process.env.AUTH_ORIGIN, SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY, WELCOME_EMAIL_SECRET: process.env.WELCOME_EMAIL_SECRET };
   Object.assign(process.env, { AUTH_ORIGIN: origin, SUPABASE_URL: "https://dbcakdqthnamgjfkkxzn.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic" });
   build = await sessionTestBuild(["lib/auth/activation.ts", "lib/auth/request.ts", "lib/validation.ts"]);
   activation = build.require("lib/auth/activation.js");
@@ -257,6 +283,15 @@ test("ineligible or unmarked identity never receives a usable setup browser sess
 
 test("first password validates exact bytes, signs out, clears cookies and requires fresh login", async () => {
   mockSession();
+  const originalFetch = globalThis.fetch;
+  process.env.WELCOME_EMAIL_SECRET = environment.WELCOME_EMAIL_SECRET;
+  let welcome;
+  globalThis.fetch = async (url, options) => {
+    assert.deepEqual(signOuts, [{ scope: "global" }]);
+    welcome = { url: String(url), options };
+    return new Response("{}", { status: 200 });
+  };
+  try {
   const Cookie = `${family}=${sessionValue}`;
   for (const [password, confirm] of [["short1", "short1"], ["password123", "password123"], ["invite-good-pass42", "invite-good-pass42"], ["Safe-first-password42", "different"]]) {
     assert.equal((await activation.setFirstPassword(request({ password, confirm }, { Cookie }))).status, 400);
@@ -268,6 +303,11 @@ test("first password validates exact bytes, signs out, clears cookies and requir
   assert.deepEqual(updates, [{ password }]); assert.deepEqual(signOuts, [{ scope: "global" }]);
   assert.equal(profile.status, "active"); assert.equal(result.cookies.get(family).value, "");
   assert.equal(result.cookies.get("sb-dbcakdqthnamgjfkkxzn-auth-token").value, "");
+  assert.equal(new URL(welcome.url).pathname, "/functions/v1/send-recovery-email");
+  assert.deepEqual(JSON.parse(welcome.options.body), { to_email: user.email });
+  assert.equal(welcome.options.headers.Authorization, `Bearer ${environment.WELCOME_EMAIL_SECRET}`);
+  assert.equal(welcome.options.headers["x-taxtrax-email-action"], "welcome");
+  } finally { globalThis.fetch = originalFetch; delete process.env.WELCOME_EMAIL_SECRET; }
 });
 
 test("normal/recovery/forged cookies cannot set first password; provider failure stays generic", async () => {
@@ -280,6 +320,20 @@ test("normal/recovery/forged cookies cannot set first password; provider failure
   const result = await activation.setFirstPassword(request({ password: "Safe-first-password42", confirm: "Safe-first-password42" }, { Cookie: `${family}=${sessionValue}` }));
   assert.equal(result.status, 503); assert.equal(result.cookies.get(family).value, "");
   assert.deepEqual(signOuts, [{ scope: "global" }]);
+});
+
+test("welcome delivery failure cannot undo completed password setup", async () => {
+  mockSession();
+  const saved = globalThis.fetch;
+  process.env.WELCOME_EMAIL_SECRET = environment.WELCOME_EMAIL_SECRET;
+  try {
+    globalThis.fetch = async () => new Response("provider unavailable", { status: 503 });
+    const password = "Safe-first-password42!";
+    const result = await activation.setFirstPassword(request({ password, confirm: password }, { Cookie: `${family}=${sessionValue}` }));
+    assert.equal(result.status, 200);
+    assert.deepEqual(signOuts, [{ scope: "global" }]);
+    assert.deepEqual(updates, [{ password }]);
+  } finally { globalThis.fetch = saved; delete process.env.WELCOME_EMAIL_SECRET; }
 });
 
 test("configuration/provider failures fail closed without raw errors or partial setup cookies", async () => {

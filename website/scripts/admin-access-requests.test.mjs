@@ -9,14 +9,17 @@ import { sessionTestBuild } from "./lib/session-test-build.mjs";
 const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const userId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const secret = "synthetic_review_capability_only_1234567890123456789";
-const row = { id, name: "Synthetic Reviewed Client", email: "review@example.invalid", status: "approved", provisioning_status: "processing", invitation_status: "not_attempted", provisioned_user_id: null };
+const row = { id, name: "Synthetic Reviewed Client", email: "review@example.invalid", phone: "+44 7700 900123", company: null,
+  status: "approved", created_at: "2026-10-09T11:00:00Z", decided_at: "2026-10-09T12:00:00Z",
+  provisioning_status: "processing", invitation_status: "not_attempted", provisioned_user_id: null };
 
 test("exact actions/UUIDs and explicit DTOs exclude private operation/provider fields", () => {
   assert.deepEqual(reviewInput({ action: "list" }), { action: "list" });
+  assert.deepEqual(reviewInput({ action: "list_all" }), { action: "list_all" });
   for (const action of ["detail", "approve", "reject", "resend_invite"]) assert.equal(reviewInput({ action, id }).id, id);
   for (const body of [null, [], {}, { action: "list", id }, { action: "approve", id: "bad" }, { action: "delete", id }, { action: "approve", id, status: "active" }]) assert.throws(() => reviewInput(body));
   assert.deepEqual(reviewData({ ...row, operation_token: secret, service_role: secret, access_token: secret }), row);
-  assert.throws(() => reviewData(Array(51).fill(row)));
+  assert.equal(reviewData(Array(51).fill(row)).length, 51);
 });
 
 test("review RPC migration uses row locks/fencing, permanent decisions and service-only grants", async () => {
@@ -119,6 +122,7 @@ test("owner setup preserves unrelated environment and refuses shared capabilitie
 
 let build;
 let handler;
+let accountsHandler;
 let oldEnvironment;
 let originalFetch;
 let calls = [];
@@ -129,6 +133,7 @@ before(async () => {
   Object.assign(process.env, { AUTH_ORIGIN: origin, ADMIN_API_KEY: adminKey, ADMIN_ACCESS_REQUEST_SECRET: secret, SUPABASE_URL: "https://dbcakdqthnamgjfkkxzn.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic", ACCESS_REQUEST_SUBMISSION_SECRET: "different-scoped-capability" });
   build = await sessionTestBuild(["lib/admin/access-requests.ts", "lib/api.ts"]);
   handler = build.require("lib/admin/access-requests.js").reviewAdminAccessRequest;
+  accountsHandler = build.require("lib/admin/access-requests.js").reviewAdminAccount;
   originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => { calls.push({ url, options }); return new Response(JSON.stringify({ ok: true, data: row })); };
 });
@@ -180,4 +185,39 @@ test("Next uses fixed list/detail forwarding, strips private fields and sanitize
     process.env.ADMIN_ACCESS_REQUEST_SECRET = process.env.ACCESS_REQUEST_SUBMISSION_SECRET;
     assert.equal((await handler(request({ id, action: "approve" }))).status, 503);
   } finally { globalThis.fetch = goodFetch; process.env.ADMIN_ACCESS_REQUEST_SECRET = secret; }
+});
+
+test("desktop accounts route returns only exact camelCase fields and forwards all-status list", async () => {
+  calls = [];
+  const result = await accountsHandler(request(undefined, {}, "", "GET"));
+  assert.equal(result.status, 200);
+  assert.match(result.headers.get("cache-control"), /no-store/);
+  assert.deepEqual(await result.json(), { ok: true, data: [{ id, name: row.name, email: row.email, phone: row.phone,
+    company: null, status: "approved", createdAt: row.created_at, decidedAt: row.decided_at }] });
+  assert.deepEqual(JSON.parse(calls[0].options.body), { action: "list_all" });
+  assert.equal((await accountsHandler(request(undefined, { "x-admin-key": "bad" }, "", "GET"))).status, 401);
+});
+
+test("desktop account status PATCH validates exact body and reuses review actions", async () => {
+  for (const [status, action] of [["approved", "set_approved"], ["rejected", "reject_pending"], ["suspended", "suspend"]]) {
+    calls = [];
+    const result = await accountsHandler(request({ id, status }));
+    assert.equal(result.status, 200);
+    assert.deepEqual(JSON.parse(calls[0].options.body), { id, action });
+    assert.deepEqual(Object.keys((await result.json()).data).sort(), ["id", "name", "email", "phone", "company", "status", "createdAt", "decidedAt"].sort());
+  }
+  for (const body of [{ id, status: "pending" }, { id, status: "approved", role: "admin" }, { id, status: "approved", action: "approve" }, { id: "bad", status: "approved" }]) {
+    assert.equal((await accountsHandler(request(body))).status, 400);
+  }
+  assert.equal((await accountsHandler(request(undefined, {}, `?id=${id}`, "GET"))).status, 400);
+});
+
+test("desktop account DTO fails closed if upstream omits a required field", async () => {
+  const saved = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({ ok: true, data: [{ id, name: row.name }] }));
+    const result = await accountsHandler(request(undefined, {}, "", "GET"));
+    assert.equal(result.status, 503);
+    assert.ok(!(await result.text()).includes(row.name));
+  } finally { globalThis.fetch = saved; }
 });
