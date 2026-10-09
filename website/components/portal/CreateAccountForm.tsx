@@ -140,7 +140,7 @@ export function CreateAccountForm({ onLogin }: { onLogin: () => void }) {
         onAnimationEnd={(event) => { if (event.target === event.currentTarget) setShaking(false); }}
       >
         {/* Honeypot: hidden from people, bots fill it in */}
-        <input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
+        <input ref={honeypot} type="text" name="form_guard" tabIndex={-1} autoComplete="off" data-1p-ignore data-lpignore="true" data-bwignore="true" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
 
         {step === 1 && (
           <div key="step1" className={`space-y-4 ${slide}`}>

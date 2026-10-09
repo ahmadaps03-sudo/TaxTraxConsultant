@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { before, after } from "node:test";
 import { readFile } from "node:fs/promises";
+import { chromium } from "playwright";
 import { normalizeAccessRequest, submitAccessRequest } from "../../supabase/functions/submit-access-request/core.mjs";
 import { accessRequestEnvironment } from "./setup-access-requests-dev.mjs";
 import { sessionTestBuild } from "./lib/session-test-build.mjs";
@@ -138,9 +139,45 @@ test("Next.js forwards only normalized intake via a scoped server-only credentia
   assert.deepEqual(Object.keys(posted).sort(), Object.keys(input).sort());
 });
 
+test("normal Create account form data leaves the neutral honeypot empty", async () => {
+  const portal = await sessionTestBuild(["app/portal/page.tsx", "components/portal/PortalClient.tsx"], { realPortal: true });
+  const mockedFetch = globalThis.fetch;
+  globalThis.fetch = originalFetch;
+  let browser;
+  try {
+    const portalOrigin = await portal.start({ SUPABASE_URL: "http://127.0.0.1:1", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic" }, { authOrigin: true });
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    let submitted;
+    await page.route("**/api/portal/access-requests", async route => {
+      submitted = route.request().postDataJSON();
+      await route.fulfill({ status: 200, contentType: "application/json", body: '{"ok":true}' });
+    });
+    await page.goto(`${portalOrigin}/portal`);
+    await page.getByRole("tab", { name: "Create account", exact: true }).click();
+    const honeypotField = page.locator('input[name="form_guard"]');
+    assert.equal(await honeypotField.getAttribute("autocomplete"), "off");
+    assert.equal(await honeypotField.getAttribute("tabindex"), "-1");
+    assert.equal(await honeypotField.getAttribute("aria-hidden"), "true");
+    await page.getByLabel("Full name", { exact: true }).fill("Synthetic Requester");
+    await page.getByLabel("Email address", { exact: true }).fill("request@example.invalid");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByLabel("Phone / WhatsApp", { exact: true }).fill("+44 7700 900123");
+    await page.getByRole("checkbox", { name: /I agree that TaxTrax may contact me/ }).check({ force: true });
+    assert.equal(await honeypotField.inputValue(), "");
+    await page.getByRole("button", { name: "Create account", exact: true }).click();
+    await page.getByRole("heading", { name: "Request received", exact: true }).waitFor();
+    assert.equal(submitted.website, "");
+    assert.equal(submitted.email, "request@example.invalid");
+    assert.equal(Object.hasOwn(submitted, "form_guard"), false);
+  } finally { globalThis.fetch = mockedFetch; await browser?.close(); await portal.stop(); }
+});
+
 test("honeypot success creates no record and duplicate acknowledgments reveal no identities", async () => {
   calls = [];
-  assert.deepEqual(await (await handler(request({ ...input, website: "bot" }))).json(), { ok: true });
+  const honeypotResult = await handler(request({ ...input, website: "bot" }));
+  assert.equal(honeypotResult.status, 200);
+  assert.deepEqual(await honeypotResult.json(), { ok: true });
   assert.equal(calls.length, 0);
   const first = await handler(request()); const duplicate = await handler(request());
   assert.equal(first.status, duplicate.status); assert.equal(await first.text(), await duplicate.text());
