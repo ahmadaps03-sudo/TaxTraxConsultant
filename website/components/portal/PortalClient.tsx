@@ -311,7 +311,7 @@ function CheckIcon() {
   );
 }
 
-const NAV = ["Dashboard", "Documents", "Checklist", "E-Signature", "Billing & Payments", "Messages", "Tax Years", "Profile"];
+const NAV = ["Dashboard", "Documents", "Checklist", "E-Signature", "Billing & Payments", "Tax Years", "Profile"];
 
 export function PortalDashboard({ name, logoutUnconfirmed = false }: { name: string; logoutUnconfirmed?: boolean }) {
   const root = usePortalHistory();
