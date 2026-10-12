@@ -9,7 +9,7 @@ import typescript from "typescript";
 
 const executeFile = promisify(execFile);
 const website = fileURLToPath(new URL("../../", import.meta.url));
-const files = ["middleware.ts", "lib/auth/current.ts", "lib/auth/authorize.ts", "lib/supabase/config.ts", "lib/supabase/cookies.ts", "lib/supabase/cache.ts", "lib/supabase/client.ts", "lib/supabase/server.ts", "lib/supabase/middleware.ts"];
+const files = ["middleware.ts", "lib/auth/current.ts", "lib/auth/authorize.ts", "lib/supabase/config.ts", "lib/supabase/cookies.ts", "lib/supabase/cache.ts", "lib/supabase/client.ts", "lib/supabase/server.ts", "lib/supabase/middleware.ts", "lib/network/client-ip.ts", "lib/site-persistence/client.ts"];
 
 export async function sessionTestBuild(additionalFiles = [], { realPortal = false } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "taxtrax-session-tests-"));

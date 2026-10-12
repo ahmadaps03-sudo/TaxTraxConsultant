@@ -1,6 +1,5 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
-import { createHash } from "node:crypto";
 import { setTimeout as pause } from "node:timers/promises";
 import { NextResponse } from "next/server";
 import { authorizePortalClient } from "./authorize";
@@ -10,11 +9,11 @@ import { createAuthCookieState, secureCookieOptions } from "../supabase/cookies"
 import { getSupabaseConfiguration } from "../supabase/config";
 import { setPrivateNoStore } from "../supabase/cache";
 import { checkPassword } from "../validation";
+import { takeSiteRateLimit } from "../site-persistence/client";
 
 const linkCookie = "taxtrax-recovery-link";
 const invalidLink = "This recovery link is invalid or has expired. Request a new link.";
 const unavailable = "Password recovery is temporarily unavailable. Please try again.";
-const recentRequests = new Map<string, number>();
 
 function origin() {
   const configured = process.env.AUTH_ORIGIN;
@@ -61,12 +60,8 @@ export async function requestRecovery(request: Request) {
     const configuration = getSupabaseConfiguration();
     const redirectTo = `${origin()}/api/auth/recovery/callback`;
     const deadline = pause(5500);
-    const key = createHash("sha256").update(email).digest("hex");
-    const now = Date.now();
-    for (const [entry, last] of recentRequests) if (now - last >= 60_000) recentRequests.delete(entry);
-    const limited = recentRequests.has(key) || recentRequests.size >= 1000;
-    if (!limited) recentRequests.set(key, now);
-    if (!limited) {
+    const limit = await takeSiteRateLimit(`recovery:${email}`, 1, 60).catch(() => null);
+    if (limit?.ok) {
       const client = createClient(configuration.url, configuration.key, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, flowType: "implicit", debug: false },
         global: { fetch: (input, options) => fetch(input, { ...options, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5000) }) },

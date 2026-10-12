@@ -142,6 +142,17 @@ export async function sitePersistence(request, secrets, provider) {
       await provider.pageView(input.view);
       return answer(200, { ok: true });
     }
+    if (input.action === "analytics_summary" && fields === "action,days" && scope === "admin"
+      && Number.isInteger(input.days) && input.days >= 1 && input.days <= 90) {
+      return answer(200, { ok: true, data: await provider.analytics(input.days) });
+    }
+    if (input.action === "active_client_count" && fields === "action" && scope === "admin") {
+      return answer(200, { ok: true, data: await provider.activeClientCount() });
+    }
+    if (input.action === "telemetry_prune" && fields === "action" && scope === "admin") {
+      await provider.pruneTelemetry();
+      return answer(200, { ok: true });
+    }
     return answer(400, { ok: false, error: "Invalid request." });
   } catch { return answer(503, { ok: false, error: "Site persistence unavailable." }); }
 }

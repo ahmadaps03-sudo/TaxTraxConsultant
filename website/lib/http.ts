@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { getUserByToken, tokenFromRequest, type SessionUser } from "./auth/session";
+import { clientIp } from "./network/client-ip";
 
 export const ok = (data?: unknown, init?: ResponseInit) => NextResponse.json({ ok: true, data }, init);
 export const fail = (status: number, error: string, fields?: Record<string, string>, headers?: Record<string, string>) =>
   NextResponse.json({ ok: false, error, fields }, { status, headers });
 
 /** Client IP. Only trusts X-Forwarded-For when TRUST_PROXY=1 (i.e. you run behind your own proxy/CDN). */
-export function clientIp(req: Request) {
-  if (process.env.TRUST_PROXY === "1") { const x = req.headers.get("x-forwarded-for"); if (x) return x.split(",")[0].trim(); }
-  return req.headers.get("x-real-ip") || "unknown";
-}
+export { clientIp };
 
 /** CSRF defence in depth (on top of SameSite=Lax cookies): browsers always send Origin on cross-site POSTs. */
 export function sameOrigin(req: Request) {

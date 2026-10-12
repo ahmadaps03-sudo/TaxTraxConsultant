@@ -216,3 +216,46 @@ test("website helper hashes limiter identity and uses only scoped server capabil
     await build.stop();
   }
 });
+
+test("analytics, client count and pruning require admin capability and expose aggregates only", async () => {
+  const aggregate = { views: 3, visitors: 2, byDay: [], countries: [], pages: [], referrers: [], devices: [] };
+  const seen = [];
+  const adapter = {
+    async analytics(days) { seen.push(["analytics", days]); return aggregate; },
+    async activeClientCount() { seen.push(["clients"]); return 2; },
+    async pruneTelemetry() { seen.push(["prune"]); },
+  };
+  for (const input of [{ action: "analytics_summary", days: 30 }, { action: "active_client_count" }, { action: "telemetry_prune" }]) {
+    assert.equal((await sitePersistence(request("ingest", input), secrets, adapter)).status, 400);
+    assert.equal((await sitePersistence(request("admin", input, { Authorization: "" }), secrets, adapter)).status, 403);
+  }
+  const result = await sitePersistence(request("admin", { action: "analytics_summary", days: 30 }), secrets, adapter);
+  assert.deepEqual((await result.json()).data, aggregate);
+  assert.equal((await sitePersistence(request("admin", { action: "analytics_summary", days: 91 }), secrets, adapter)).status, 400);
+  assert.equal((await sitePersistence(request("admin", { action: "active_client_count" }), secrets, adapter)).status, 200);
+  assert.equal((await sitePersistence(request("admin", { action: "telemetry_prune" }), secrets, adapter)).status, 200);
+  assert.deepEqual(seen, [["analytics", 30], ["clients"], ["prune"]]);
+  assert.doesNotMatch(JSON.stringify(aggregate), /visitor_hash|raw_ip|user_id/);
+});
+
+test("provider reads only active profile count and bounded SQL aggregates", async () => {
+  const aggregate = { views: 3, visitors: 2, byDay: [], countries: [], pages: [], referrers: [], devices: [] };
+  const seen = [];
+  const transport = async (url, options) => {
+    seen.push([url, options]);
+    if (url.includes("rpc/site_analytics_aggregate")) return Response.json(aggregate);
+    if (url.includes("client_profiles?")) return new Response(null, { status: 200, headers: { "Content-Range": "0-0/2" } });
+    if (url.includes("rpc/site_prune_telemetry")) return Response.json(null);
+    return new Response("private error", { status: 503 });
+  };
+  const provider = siteProvider("https://synthetic.supabase.co", "synthetic_service_key", transport);
+  assert.deepEqual(await provider.analytics(30), aggregate);
+  assert.equal(await provider.activeClientCount(), 2);
+  await provider.pruneTelemetry();
+  assert.match(seen[0][0], /rpc\/site_analytics_aggregate/);
+  assert.deepEqual(JSON.parse(seen[0][1].body), { p_days: 30 });
+  assert.match(seen[1][0], /client_profiles\?status=eq\.active/);
+  assert.equal(seen[1][1].method, "HEAD");
+  assert.equal(seen[1][1].headers.Prefer, "count=exact");
+  assert.ok(seen.every(([, options]) => options.headers.Authorization === "Bearer synthetic_service_key"));
+});

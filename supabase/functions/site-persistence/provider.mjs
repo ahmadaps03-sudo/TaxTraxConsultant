@@ -143,6 +143,22 @@ export function siteProvider(url, serviceKey, transport = fetch) {
     async pageView(view) {
       await call("site_page_views", { method: "POST", body: JSON.stringify(view) });
     },
+    async analytics(days) {
+      const response = await call("rpc/site_analytics_aggregate", { method: "POST", body: JSON.stringify({ p_days: days }) });
+      const result = await response.json();
+      if (!result || typeof result !== "object" || !Number.isInteger(result.views) || !Number.isInteger(result.visitors)
+        || !["byDay", "countries", "pages", "referrers", "devices"].every(key => Array.isArray(result[key]))) throw new Error("Site persistence unavailable.");
+      return result;
+    },
+    async activeClientCount() {
+      const response = await call("client_profiles?status=eq.active&select=user_id&limit=1", { method: "HEAD", headers: { Prefer: "count=exact" } });
+      const count = response.headers.get("content-range")?.match(/\/(\d+)$/)?.[1];
+      if (count === undefined || !Number.isSafeInteger(Number(count))) throw new Error("Site persistence unavailable.");
+      return Number(count);
+    },
+    async pruneTelemetry() {
+      await call("rpc/site_prune_telemetry", { method: "POST", body: "{}" });
+    },
   };
   return provider;
 }

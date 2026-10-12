@@ -87,13 +87,32 @@ let oldEnvironment;
 let originalFetch;
 let address = 0;
 let calls = [];
+let limiterAvailable = true;
 before(async () => {
   oldEnvironment = Object.fromEntries(["AUTH_ORIGIN", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "ACCESS_REQUEST_SUBMISSION_SECRET", "TRUST_PROXY"].map(key => [key, process.env[key]]));
   Object.assign(process.env, { AUTH_ORIGIN: origin, SUPABASE_URL: "https://dbcakdqthnamgjfkkxzn.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic", ACCESS_REQUEST_SUBMISSION_SECRET: secret, TRUST_PROXY: "1" });
   build = await sessionTestBuild(["lib/access-requests/handler.ts", "lib/auth/request.ts"]);
+  const limiter = new Map();
+  build.require("lib/site-persistence/client.js").takeSiteRateLimit = async (key, max, windowSeconds) => {
+    if (!limiterAvailable) throw new Error("private limiter failure");
+    const count = (limiter.get(key) ?? 0) + 1;
+    limiter.set(key, count);
+    return { ok: count <= max, retryAfter: count <= max ? 0 : windowSeconds };
+  };
   handler = build.require("lib/access-requests/handler.js").requestPortalAccess;
   originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => { calls.push({ url, options }); return new Response('{"ok":true}', { headers: { "Content-Type": "application/json" } }); };
+});
+
+test("distributed limiter outage refuses access requests without invoking submission", async () => {
+  const before = calls.length;
+  limiterAvailable = false;
+  try {
+    const result = await handler(request());
+    assert.equal(result.status, 503);
+    assert.ok(!(await result.text()).includes("private limiter failure"));
+    assert.equal(calls.length, before);
+  } finally { limiterAvailable = true; }
 });
 after(async () => {
   globalThis.fetch = originalFetch;

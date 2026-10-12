@@ -1,6 +1,6 @@
 import { withClient } from "@/lib/portal/guard";
 import { saveDocument, MAX_FILE_BYTES, PortalError } from "@/lib/portal/service";
-import { rateLimit } from "@/lib/auth/ratelimit";
+import { takeSiteRateLimit } from "@/lib/site-persistence/client";
 import { boundedBody } from "@/lib/portal/body";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /** multipart/form-data: file, tag, taxYear */
 export const POST = (request: Request) => withClient(request, true, async (ctx) => {
-  const rl = rateLimit(`client-upload:${ctx.user.id}`, 30, 600);
+  const rl = await takeSiteRateLimit(`client-upload:${ctx.user.id}`, 30, 600);
   if (!rl.ok) return ctx.fail(429, "Too many uploads. Please wait a few minutes and try again.");
   let form: FormData;
   if (!/^multipart\/form-data;\s*boundary=/i.test(request.headers.get("content-type") ?? "")) throw new PortalError(415, "Invalid upload.");

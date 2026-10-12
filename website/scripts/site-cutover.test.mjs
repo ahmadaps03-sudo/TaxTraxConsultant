@@ -28,17 +28,18 @@ const request = (path, method = "GET", body, headers = {}) => new Request(`http:
 test("public submissions use ingest, keep response shapes and fail closed on outage", async () => {
   const received = [];
   let unavailable = false;
-  const site = { addSiteSubmission: async (collection, data) => {
+  let limiterUnavailable = false;
+  let limiterBlocked = false;
+  const site = { takeSiteRateLimit: async () => { if (limiterUnavailable) throw new Error("private limiter detail"); return limiterBlocked ? { ok: false, retryAfter: 42 } : { ok: true, retryAfter: 0 }; }, addSiteSubmission: async (collection, data) => {
     if (unavailable) throw new Error("synthetic provider detail");
     received.push({ collection, data });
     return { ...data, id: randomUUID(), createdAt };
   } };
   const validation = await load("lib/validation.ts");
   const api = await load("lib/api.ts");
-  const http = await load("lib/http.ts", { "./auth/session": { getUserByToken: () => null, tokenFromRequest: () => null } });
-  const rate = { rateLimit: () => ({ ok: true, retryAfter: 0 }) };
-  const contact = await load("app/api/contact/route.ts", { "@/lib/site-persistence/client": site, "@/lib/validation": validation, "@/lib/http": http, "@/lib/auth/ratelimit": rate });
-  const bookings = await load("app/api/bookings/route.ts", { "@/lib/site-persistence/client": site, "@/lib/validation": validation, "@/lib/http": http, "@/lib/auth/ratelimit": rate });
+  const http = await load("lib/http.ts", { "./auth/session": { getUserByToken: () => null, tokenFromRequest: () => null }, "./network/client-ip": { clientIp: () => "unknown" } });
+  const contact = await load("app/api/contact/route.ts", { "@/lib/site-persistence/client": site, "@/lib/validation": validation, "@/lib/http": http });
+  const bookings = await load("app/api/bookings/route.ts", { "@/lib/site-persistence/client": site, "@/lib/validation": validation, "@/lib/http": http });
   const leads = await load("app/api/leads/route.ts", { "@/lib/site-persistence/client": site, "@/lib/api": api, "@/lib/http": http });
   const contactInput = { name: "Synthetic Visitor", email: "visitor@example.invalid", phone: "+44 7700 900123", subject: "Synthetic question", service: "Consultation", message: "Synthetic message for testing only." };
   const bookingInput = { name: "Synthetic Visitor", email: "visitor@example.invalid", phone: "+44 7700 900123", date: "2099-01-01", time: "10:00", service: "Consultation", revenue: "", timeline: "" };
@@ -57,6 +58,25 @@ test("public submissions use ingest, keep response shapes and fail closed on out
   assert.ok(!(await failed.text()).includes("synthetic provider detail"));
   assert.equal((await bookings.POST(request("/api/bookings", "POST", bookingInput))).status, 503);
   assert.equal((await leads.POST(request("/api/leads", "POST", { name: "Synthetic Visitor", email: "outage@example.invalid" }))).status, 503);
+  unavailable = false;
+  limiterUnavailable = true;
+  const before = received.length;
+  for (const [handler, path, input] of [[contact, "/api/contact", contactInput], [bookings, "/api/bookings", bookingInput],
+    [leads, "/api/leads", { name: "Synthetic Visitor", email: "visitor@example.invalid" }]]) {
+    const result = await handler.POST(request(path, "POST", input));
+    assert.equal(result.status, 503);
+    assert.ok(!(await result.text()).includes("private limiter detail"));
+  }
+  assert.equal(received.length, before);
+  limiterUnavailable = false;
+  limiterBlocked = true;
+  for (const [handler, path, input] of [[contact, "/api/contact", contactInput], [bookings, "/api/bookings", bookingInput],
+    [leads, "/api/leads", { name: "Synthetic Visitor", email: "visitor@example.invalid" }]]) {
+    const result = await handler.POST(request(path, "POST", input));
+    assert.equal(result.status, 429);
+    if (path !== "/api/leads") assert.equal(result.headers.get("retry-after"), "42");
+  }
+  assert.equal(received.length, before);
 });
 
 test("Admin routes retain Electron CRUD paths, authorization and row shape", async () => {

@@ -99,3 +99,29 @@ not yet a Vercel-ready or Production deployment.
 
 `npm run test:site-cutover` checks route contracts and portal booking isolation
 without writing to shared Dev.
+
+## Slice 4 analytics and distributed limits (pending Dev rollout)
+
+The Slice 4 code writes page views through the existing ingest-scoped Edge
+capability and reads aggregate-only results through the admin-scoped
+`site_analytics_aggregate` RPC. The forward-only migration
+`20261015000100_site_analytics_aggregate.sql` is **not yet applied in Dev**.
+The revised `site-persistence` Edge Function must be deployed with the existing
+scoped secrets. Admin summary now counts active `client_profiles`, not legacy
+SQLite users. Existing chart/API response shapes remain unchanged; the 18
+local demo/history views are not imported.
+
+Contact, booking, lead, tracking, access-request, recovery and authenticated
+portal mutation limits use the existing atomic Postgres fixed-window limiter.
+Tracking keeps its 204 beacon response and suppresses writes on outage;
+mutations fail closed. IP identity comes only from `X-Forwarded-For` when
+`TRUST_PROXY=1` behind a proxy that **overwrites** that header. Otherwise the
+shared `unknown` bucket is deliberately conservative. Visitor IDs are daily
+HMACs; use a private 32+ character `ANALYTICS_SALT` or the existing private
+`SITE_INGEST_SECRET`. Raw IP addresses are not persisted.
+
+The existing service-only `site_prune_telemetry` RPC deletes views older than
+90 days and stale limiter buckets. After Dev rollout, the owner can run
+`node scripts/site-prune-telemetry-dev.mjs` from `website/`. A trusted daily
+schedule is required before Vercel staging; this slice does not install one.
+Do not run this command against Production or copy local demo views to Dev.

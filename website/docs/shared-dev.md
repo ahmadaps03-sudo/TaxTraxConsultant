@@ -2,10 +2,9 @@
 
 Use only TaxTrax DEVELOPMENT (`dbcakdqthnamgjfkkxzn`). Production is not a test
 target. Existing authentication, profile RLS and provider-session checks are
-unchanged. Site collections use Supabase Dev; analytics and rate limits still
-use local SQLite infrastructure. The site-video Storage change is pending Dev
-rollout; video uploads remain unavailable until its migration and Edge Function
-are deployed. Password
+unchanged. Site collections and video Storage use Supabase Dev. The Slice 4
+analytics/distributed-limiter cutover is pending its Dev migration and Edge
+deployment; until then, do not test its new route behavior. Password
 recovery and invite-only first-time setup use Supabase Auth and a signed EmailJS
 hook. MFA, backend Remember-me persistence and other portal functions remain deferred; this is
 not a production deployment or compliance certification.
@@ -115,11 +114,11 @@ have no separate email. New, duplicate and existing-account submissions return
 the same success. Existing requests/accounts/profiles are not changed. No email,
 Auth identity, profile or approval is created.
 
-Basic limits are five valid-boundary attempts per ten minutes per trusted IP,
-process-local, with a bounded map and a honeypot. Without `TRUST_PROXY=1`, requests
-share a fallback bucket; client-supplied forwarding headers are not trusted.
-Only enable that flag behind a proxy that overwrites those headers. These are
-basic Dev abuse controls, not distributed production protection. Secrets must
+Basic limits remain five valid-boundary attempts per ten minutes per trusted IP,
+but Slice 4 moves them to a shared atomic Postgres bucket after Dev rollout.
+Without `TRUST_PROXY=1`, requests share an `unknown` bucket; client-supplied
+forwarding headers are not trusted. Only enable that flag behind a proxy that
+overwrites those headers. Secrets must
 not be logged or shared in screenshots. Production rollout/hardening is deferred.
 
 Owner-only `npm run test:access-requests:shared-dev` requires CLI provisioning and

@@ -1,13 +1,15 @@
 import { addSiteSubmission } from "@/lib/site-persistence/client";
 import { validateContact } from "@/lib/validation";
 import { fail, ok, readJson, sameOrigin, csrfFail, clientIp } from "@/lib/http";
-import { rateLimit } from "@/lib/auth/ratelimit";
+import { takeSiteRateLimit } from "@/lib/site-persistence/client";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return csrfFail();
-  const rl = rateLimit(`contact:${clientIp(req)}`, 5, 600); // 5 messages / 10 min / IP
+  let rl;
+  try { rl = await takeSiteRateLimit(`contact:${clientIp(req)}`, 5, 600); }
+  catch { return fail(503, "Contact is temporarily unavailable. Please try again shortly."); }
   if (!rl.ok) return fail(429, "Too many messages. Please wait a few minutes or reach us on WhatsApp.", undefined, { "Retry-After": String(rl.retryAfter) });
   const b = await readJson(req);
   if (!b) return fail(400, "Invalid request.");

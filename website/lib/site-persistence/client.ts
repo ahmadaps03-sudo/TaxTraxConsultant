@@ -92,6 +92,25 @@ export const deleteSiteRecordForAdmin = (collection: SiteCollection, id: string)
 export const writeSitePageView = (view: SitePageView) =>
   call<void>("ingest", { action: "page_view", view });
 
+export type SiteAnalyticsAggregate = {
+  views: number;
+  visitors: number;
+  byDay: { day: string; views: number; visitors: number }[];
+  countries: { country: string; views: number; visitors: number }[];
+  pages: { path: string; views: number }[];
+  referrers: { referrer: string; views: number }[];
+  devices: { device: string; visitors: number }[];
+};
+
+export const readSiteAnalytics = (days: number) =>
+  call<SiteAnalyticsAggregate>("admin", { action: "analytics_summary", days });
+
+export const countActiveSiteClients = () =>
+  call<number>("admin", { action: "active_client_count" });
+
+export const pruneSiteTelemetry = () =>
+  call<void>("admin", { action: "telemetry_prune" });
+
 export const signSiteVideoUpload = (size: number, contentType: string) =>
   call<{ file: string; uploadUrl: string }>("admin", { action: "video_upload_sign", size, contentType });
 

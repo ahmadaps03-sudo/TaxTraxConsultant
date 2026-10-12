@@ -36,6 +36,8 @@ test("local disposable Postgres enforces site grants, RLS, validation and atomic
     sql(publication);
     const mutations = await readFile(new URL("../../supabase/migrations/20261013000300_site_record_admin_mutations.sql", import.meta.url), "utf8");
     sql(mutations);
+    const analytics = await readFile(new URL("../../supabase/migrations/20261015000100_site_analytics_aggregate.sql", import.meta.url), "utf8");
+    sql(analytics);
 
     sql(`insert into public.site_records(id,collection,data,created_at) values
       ('seed-post','posts','{"slug":"synthetic","published":true}'::jsonb,'2026-10-12T12:00:00Z'),
@@ -54,6 +56,8 @@ test("local disposable Postgres enforces site grants, RLS, validation and atomic
     assert.equal(sql("select has_function_privilege('anon','public.site_take_rate_limit(text,integer,integer)','EXECUTE');"), "f");
     assert.equal(sql("select has_function_privilege('anon','public.site_update_record(text,text,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.site_delete_record(text,text)','EXECUTE');"), "f");
     assert.equal(sql("select has_function_privilege('service_role','public.site_update_record(text,text,jsonb)','EXECUTE') and has_function_privilege('service_role','public.site_delete_record(text,text)','EXECUTE');"), "t");
+    assert.equal(sql("select has_function_privilege('anon','public.site_analytics_aggregate(integer)','EXECUTE') or has_function_privilege('authenticated','public.site_analytics_aggregate(integer)','EXECUTE');"), "f");
+    assert.equal(sql("select has_function_privilege('service_role','public.site_analytics_aggregate(integer)','EXECUTE');"), "t");
     assert.equal(sql("select id,created_at from public.site_records where id='seed-post';"), "seed-post|2026-10-12 12:00:00+00");
     assert.equal(sql("set role service_role; select id,created_at,data->>'published' from public.site_update_record('posts','draft-post','{\"published\":true}'::jsonb); reset role;"), "draft-post|2026-10-12 12:00:00+00|true");
     assert.equal(sql("select data->>'slug' from public.site_records where id='draft-post';"), "synthetic-draft");
@@ -77,6 +81,23 @@ test("local disposable Postgres enforces site grants, RLS, validation and atomic
     const invalidView = spawnSync("docker", ["exec", "-i", container, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"],
       { input: "insert into public.site_page_views(ts,day,path,country,visitor,device) values('2026-10-12T12:00:00Z','2026-10-11','/about','GB','raw-ip','desktop');", encoding: "utf8" });
     assert.notEqual(invalidView.status, 0);
+    sql(`insert into public.site_page_views(ts,day,path,country,visitor,referrer,device) values
+      (now(), (now() at time zone 'UTC')::date, '/about', 'GB', '1111111111111111', 'example.invalid', 'desktop'),
+      (now(), (now() at time zone 'UTC')::date, '/about', 'GB', '1111111111111111', 'example.invalid', 'desktop'),
+      (now(), (now() at time zone 'UTC')::date, '/contact', 'US', '2222222222222222', null, 'mobile');`);
+    const aggregate = JSON.parse(sql("set role service_role; select public.site_analytics_aggregate(1); reset role;").split("\n").find(line => line.startsWith("{")));
+    assert.deepEqual([aggregate.views, aggregate.visitors], [3, 2]);
+    assert.deepEqual(aggregate.byDay.map(row => [row.views, row.visitors]), [[3, 2]]);
+    assert.deepEqual(aggregate.countries.map(row => [row.country, row.views, row.visitors]), [["GB", 2, 1], ["US", 1, 1]]);
+    assert.deepEqual(aggregate.pages.map(row => [row.path, row.views]), [["/about", 2], ["/contact", 1]]);
+    assert.deepEqual(aggregate.referrers.map(row => [row.referrer, row.views]), [["example.invalid", 2]]);
+    assert.deepEqual(aggregate.devices.map(row => [row.device, row.visitors]), [["desktop", 1], ["mobile", 1]]);
+    sql(`insert into public.site_page_views(ts,day,path,country,visitor,referrer,device)
+      values (now() - interval '1 day', (now() at time zone 'UTC')::date - 1,
+        '/about', 'GB', '1111111111111111', null, 'desktop');`);
+    const twoDays = JSON.parse(sql("set role service_role; select public.site_analytics_aggregate(2); reset role;").split("\n").find(line => line.startsWith("{")));
+    assert.deepEqual([twoDays.views, twoDays.visitors], [4, 3]);
+    assert.deepEqual(twoDays.byDay.map(row => [row.views, row.visitors]).sort((left, right) => left[0] - right[0]), [[1, 1], [3, 2]]);
 
     const call = (hash, max, window) => `set role service_role; select ok,retry_after from public.site_take_rate_limit(repeat('${hash}',64),${max},${window});`;
     const results = await Promise.all(Array.from({ length: 20 }, async () => sql(call("a", 5, 600)).split("\n").at(-1)));
@@ -92,6 +113,6 @@ test("local disposable Postgres enforces site grants, RLS, validation and atomic
       assert.notEqual(invalid.status, 0);
     }
     sql("set role service_role; select public.site_prune_telemetry();");
-    assert.equal(sql("select count(*) from public.site_page_views;"), "0");
+    assert.equal(sql("select count(*) from public.site_page_views;"), "4");
   } finally { docker("stop", container); }
 });

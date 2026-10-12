@@ -81,6 +81,7 @@ let originalClient;
 let originalAuthorization;
 let originalFetch;
 let oldEnvironment;
+let recoveryLimiterAvailable = true;
 let scoped;
 let eligibility;
 let updates;
@@ -90,12 +91,32 @@ before(async () => {
   oldEnvironment = { AUTH_ORIGIN: process.env.AUTH_ORIGIN, SUPABASE_URL: process.env.SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY };
   Object.assign(process.env, { AUTH_ORIGIN: origin, SUPABASE_URL: "https://dbcakdqthnamgjfkkxzn.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic" });
   build = await sessionTestBuild(["lib/auth/recovery.ts", "lib/auth/request.ts", "lib/validation.ts"]);
+  const cooldown = new Set();
+  build.require("lib/site-persistence/client.js").takeSiteRateLimit = async key => {
+    if (!recoveryLimiterAvailable) throw new Error("private limiter failure");
+    const ok = !cooldown.has(key);
+    cooldown.add(key);
+    return { ok, retryAfter: ok ? 0 : 60 };
+  };
   recovery = build.require("lib/auth/recovery.js");
   clientModule = build.require("lib/supabase/client.js");
   authorization = build.require("lib/auth/authorize.js");
   originalClient = clientModule.createRequestSupabaseClient;
   originalAuthorization = authorization.authorizePortalClient;
   originalFetch = globalThis.fetch;
+});
+
+test("recovery limiter outage suppresses provider calls without account enumeration", async () => {
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("Must not contact provider"); };
+  recoveryLimiterAvailable = false;
+  try {
+    const result = await recovery.requestRecovery(request({ email: "limiter-outage@example.invalid" }));
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { ok: true });
+    assert.equal(calls, 0);
+  } finally { recoveryLimiterAvailable = true; globalThis.fetch = previousFetch; }
 });
 
 after(async () => {
