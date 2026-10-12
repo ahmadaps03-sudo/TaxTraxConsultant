@@ -1,4 +1,5 @@
 import { list, type Row } from "./store";
+import { listPublishedSiteContent } from "./site-persistence/client";
 
 export type PostRow = Row & { slug: string; title: string; category: string; excerpt: string; author: string; date: string; content: string[]; published: boolean };
 export type VideoRow = Row & { kind: "youtube" | "file"; youtubeId?: string; file?: string; title: string; category: string; description: string; published: boolean };
@@ -13,11 +14,11 @@ const paragraphs = (v: unknown) =>
   (Array.isArray(v) ? v.map(String) : typeof v === "string" ? v.split(/\n\s*\n/) : []).map((x) => x.trim()).filter(Boolean).slice(0, 80).map((x) => x.slice(0, 6000));
 
 export async function getPublishedPosts() {
-  return ((await list("posts")) as PostRow[]).filter((p) => p.published !== false).sort((a, b) => b.date.localeCompare(a.date));
+  return ((await listPublishedSiteContent("posts")) as PostRow[]).filter((p) => p.published === true).sort((a, b) => b.date.localeCompare(a.date));
 }
 export async function getPost(slug: string) { return (await getPublishedPosts()).find((p) => p.slug === slug) ?? null; }
 export async function getPublishedVideos() {
-  return ((await list("videos")) as VideoRow[]).filter((v) => v.published !== false).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  return ((await listPublishedSiteContent("videos")) as VideoRow[]).filter((v) => v.published === true).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
 type Built = { error: string; data?: undefined } | { error?: undefined; data: Record<string, unknown> };

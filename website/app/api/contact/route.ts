@@ -1,4 +1,4 @@
-import { add } from "@/lib/store";
+import { addSiteSubmission } from "@/lib/site-persistence/client";
 import { validateContact } from "@/lib/validation";
 import { fail, ok, readJson, sameOrigin, csrfFail, clientIp } from "@/lib/http";
 import { rateLimit } from "@/lib/auth/ratelimit";
@@ -14,6 +14,7 @@ export async function POST(req: Request) {
   if (typeof b.website === "string" && b.website) return ok(); // honeypot: bots fill hidden fields; pretend success
   const v = validateContact(b);
   if (!v.ok) return fail(400, "Please fix the highlighted fields.", v.fields);
-  await add("messages", { read: false, ...v.value });
+  try { await addSiteSubmission("messages", { read: false, ...v.value }); }
+  catch { return fail(503, "Contact is temporarily unavailable. Please try again shortly."); }
   return ok();
 }

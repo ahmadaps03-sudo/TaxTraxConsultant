@@ -10,10 +10,10 @@ Login/logout now works for deliberately provisioned synthetic local accounts.
 Other dashboard functionality remains mock/unimplemented; do not put real client
 or financial data in this development portal.
 
-Existing contact, bookings, leads, analytics, content, admin CRUD, and local media
-continue to use the unchanged SQLite/filesystem backend. Supabase does not replace
-that persistence in this slice. Nothing here is production configuration or a
-deployment/compliance certification.
+At checkpoints 1–2, contact, bookings, leads, analytics, content, admin CRUD and
+local media still used SQLite/filesystem. Site collections were subsequently
+cut over to Supabase; analytics, rate limits, legacy data and media remain local.
+Nothing here is production configuration or a deployment/compliance certification.
 
 ## Prerequisites and compatible pins
 

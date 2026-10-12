@@ -16,6 +16,8 @@ const provider = {
   async rateLimit(hash, max, windowSeconds) { calls.push(["limit", hash, max, windowSeconds]); return { ok: true, retryAfter: 0 }; },
   async add(collection, data) { calls.push(["add", collection]); return { ...data, id: "seed-synthetic", createdAt: "2026-10-12T12:00:00.000Z" }; },
   async list(collection) { calls.push(["list", collection]); return [{ id: "seed-synthetic", createdAt: "2026-10-12T12:00:00.000Z" }]; },
+  async update(collection, id, patch) { calls.push(["update", collection, id]); return { ...patch, id, createdAt: "2026-10-12T12:00:00.000Z" }; },
+  async remove(collection, id) { calls.push(["delete", collection, id]); return { id, createdAt: "2026-10-12T12:00:00.000Z" }; },
   async pageView(input) { calls.push(["view", input.path]); },
 };
 
@@ -68,6 +70,45 @@ test("separate scoped capabilities enforce public/private operations and stable 
   assert.equal(calls.filter(item => item[0] === "list").length, 1);
 });
 
+test("admin CRUD uses exact requests and retains IDs and timestamps", async () => {
+  calls.length = 0;
+  const added = await sitePersistence(request("admin", { action: "record_add", collection: "posts", data: { title: "Synthetic", published: false } }), secrets, provider);
+  assert.deepEqual(await added.json(), { ok: true, data: { title: "Synthetic", published: false, id: "seed-synthetic", createdAt: "2026-10-12T12:00:00.000Z" } });
+  const listed = await sitePersistence(request("admin", { action: "record_list", collection: "posts" }), secrets, provider);
+  assert.equal((await listed.json()).data[0].id, "seed-synthetic");
+  const updated = await sitePersistence(request("admin", { action: "record_update", collection: "posts", id: "seed-synthetic", patch: { published: true } }), secrets, provider);
+  assert.deepEqual((await updated.json()).data, { published: true, id: "seed-synthetic", createdAt: "2026-10-12T12:00:00.000Z" });
+  const deleted = await sitePersistence(request("admin", { action: "record_delete", collection: "posts", id: "seed-synthetic" }), secrets, provider);
+  assert.deepEqual((await deleted.json()).data, { id: "seed-synthetic", createdAt: "2026-10-12T12:00:00.000Z" });
+  assert.deepEqual(calls.map(item => item[0]), ["add", "list", "update", "delete"]);
+});
+
+test("admin mutations reject absent or wrong capabilities, forged fields and collections", async () => {
+  calls.length = 0;
+  const update = { action: "record_update", collection: "messages", id: "seed-synthetic", patch: { read: true } };
+  const remove = { action: "record_delete", collection: "messages", id: "seed-synthetic" };
+  for (const body of [update, remove]) {
+    assert.equal((await sitePersistence(request("ingest", body), secrets, provider)).status, 400);
+    assert.equal((await sitePersistence(request("admin", body, { Authorization: "" }), secrets, provider)).status, 403);
+    assert.equal((await sitePersistence(request("admin", body, { Authorization: "Bearer wrong" }), secrets, provider)).status, 403);
+  }
+  for (const body of [
+    { ...update, collection: "client_profiles" }, { ...remove, collection: "client_profiles" },
+    { ...update, patch: { id: "forged" } }, { ...update, patch: { createdAt: "forged" } },
+    { ...update, patch: {} }, { ...update, id: "bad\nid" }, { ...remove, id: "" },
+    { ...remove, extra: "forged" },
+  ]) assert.equal((await sitePersistence(request("admin", body), secrets, provider)).status, 400);
+  assert.deepEqual(calls, []);
+});
+
+test("missing configured admin capability fails closed before any provider operation", async () => {
+  calls.length = 0;
+  const missing = { ...secrets, admin: undefined };
+  const response = await sitePersistence(request("admin", { action: "record_update", collection: "posts", id: "seed-synthetic", patch: { published: true } }), missing, provider);
+  assert.equal(response.status, 503);
+  assert.deepEqual(calls, []);
+});
+
 test("malformed credentials, input, extra fields and oversized bodies cannot write", async () => {
   calls.length = 0;
   for (const headers of [{ Authorization: "Bearer wrong" }, { "Content-Type": "text/plain" }]) {
@@ -116,6 +157,24 @@ test("provider sends privileged credentials only inside the Edge layer and never
   assert.doesNotMatch(runtime, /dbcakdqthnamgjfkkxzn/);
 });
 
+test("provider performs collection-bound atomic mutations without exposing raw errors", async () => {
+  const privateKey = "synthetic_service_credential_do_not_expose";
+  const seen = [];
+  const transport = async (url, options) => {
+    seen.push({ url, options });
+    if (url.endsWith("rpc/site_update_record")) return new Response('[{"id":"synthetic-id","created_at":"2026-10-12T12:00:00Z","data":{"published":false,"title":"Revised"}}]', { status: 200 });
+    if (url.endsWith("rpc/site_delete_record")) return new Response('[]', { status: 200 });
+    return new Response("sensitive provider failure", { status: 503 });
+  };
+  const client = siteProvider("https://synthetic.supabase.co", privateKey, transport);
+  assert.deepEqual(await client.update("posts", "synthetic-id", { title: "Revised" }), { published: false, title: "Revised", id: "synthetic-id", createdAt: "2026-10-12T12:00:00.000Z" });
+  assert.equal(await client.remove("posts", "missing-id"), null);
+  assert.deepEqual(JSON.parse(seen[0].options.body), { p_collection: "posts", p_id: "synthetic-id", p_patch: { title: "Revised" } });
+  assert.deepEqual(JSON.parse(seen[1].options.body), { p_collection: "posts", p_id: "missing-id" });
+  assert.ok(seen.every(entry => entry.options.headers.Authorization === `Bearer ${privateKey}`));
+  await assert.rejects(client.add("posts", { title: "Synthetic" }), error => !error.message.includes(privateKey) && !error.message.includes("sensitive provider failure"));
+});
+
 test("website helper hashes limiter identity and uses only scoped server capabilities", async () => {
   const environmentNames = ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SITE_INGEST_SECRET", "SITE_ADMIN_DATA_SECRET"];
   const previous = Object.fromEntries(environmentNames.map(name => [name, process.env[name]]));
@@ -130,7 +189,8 @@ test("website helper hashes limiter identity and uses only scoped server capabil
     const helper = build.require("lib/site-persistence/client.js");
     globalThis.fetch = async (url, options) => {
       seen.push({ url, options, body: JSON.parse(options.body) });
-      return new Response(JSON.stringify({ ok: true, data: { ok: true, retryAfter: 0 } }), { status: 200 });
+      const data = JSON.parse(options.body).action === "rate_limit" ? { ok: true, retryAfter: 0 } : { id: "synthetic-id", createdAt: "2026-10-12T12:00:00.000Z" };
+      return new Response(JSON.stringify({ ok: true, data }), { status: 200 });
     };
     assert.deepEqual(await helper.takeSiteRateLimit("contact:192.0.2.1", 5, 600), { ok: true, retryAfter: 0 });
     assert.equal(seen[0].url, "https://synthetic.supabase.co/functions/v1/site-persistence");
@@ -139,10 +199,17 @@ test("website helper hashes limiter identity and uses only scoped server capabil
     assert.equal(seen[0].options.cache, "no-store");
     assert.match(seen[0].body.hash, /^[0-9a-f]{64}$/);
     assert.ok(!JSON.stringify(seen[0].body).includes("192.0.2.1"));
+    assert.equal((await helper.updateSiteRecordForAdmin("posts", "synthetic-id", { published: false })).id, "synthetic-id");
+    assert.equal((await helper.deleteSiteRecordForAdmin("posts", "synthetic-id")).id, "synthetic-id");
+    assert.equal(seen[1].body.action, "record_update");
+    assert.equal(seen[2].body.action, "record_delete");
+    assert.ok(seen.slice(1).every(entry => entry.options.headers.Authorization === `Bearer ${secrets.admin}`));
     await assert.rejects(helper.takeSiteRateLimit("bad", 0, 600), { name: "Error", message: "Site persistence is temporarily unavailable." });
     delete process.env.SITE_INGEST_SECRET;
     await assert.rejects(helper.takeSiteRateLimit("contact:192.0.2.1", 5, 600), { name: "Error", message: "Site persistence is temporarily unavailable." });
-    assert.equal(seen.length, 1);
+    delete process.env.SITE_ADMIN_DATA_SECRET;
+    await assert.rejects(helper.updateSiteRecordForAdmin("posts", "synthetic-id", { published: true }), { name: "Error", message: "Site persistence is temporarily unavailable." });
+    assert.equal(seen.length, 3);
   } finally {
     globalThis.fetch = oldFetch;
     for (const [name, value] of Object.entries(previous)) if (value === undefined) delete process.env[name]; else process.env[name] = value;

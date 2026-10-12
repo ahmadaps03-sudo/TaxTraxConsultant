@@ -6,6 +6,6 @@ The website uses its existing `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `AUTH_
 
 The `client-documents` Storage bucket must remain private. Before allowing sensitive uploads, verify the Dev bucket, effective `storage.objects` policies (including any policies not created by these migrations), and direct Storage API behavior with two synthetic clients. The local Supabase configuration disables Storage, so local SQL tests alone do not cover it.
 
-The portal overview optionally displays appointments from the existing SQLite bookings store by email. A missing/unavailable SQLite bookings store yields an empty appointments list; all new portal data remains in Supabase. This is transitional and must not be treated as a migrated bookings feature.
+The portal overview displays matching appointments from the Supabase-backed bookings collection, using the validated client's email. The server filters results before responding and fails closed if the scoped site capability is unavailable. No SQLite booking fallback is used. Local SQLite bookings were not imported to shared Dev.
 
 Manual QA uses synthetic Dev identities only: log in as active client A, check every tab and allowed actions, verify client B cannot access A's API objects or Storage paths, suspend A and verify access is denied, then verify logout/revocation. For staff actions, start the website backend with the server-only secret and use the existing admin key; confirm requests without it fail. Do not use real tax or financial documents during QA.

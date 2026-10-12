@@ -3,6 +3,7 @@ const ingestCollections = new Set(["messages", "bookings", "leads"]);
 const secretPattern = /^[A-Za-z0-9_-]{43,128}$/;
 const hashPattern = /^[0-9a-f]{64}$/;
 const maximumBytes = 1_048_576;
+const validId = id => typeof id === "string" && id.length >= 1 && id.length <= 120 && !/[\u0000-\u001f\u007f-\u009f]/.test(id);
 
 const answer = (status, body) => new Response(JSON.stringify(body), { status,
   headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
@@ -106,6 +107,15 @@ export async function sitePersistence(request, secrets, provider) {
     }
     if (input.action === "record_list" && fields === "action,collection" && scope === "admin" && collections.has(input.collection)) {
       return answer(200, { ok: true, data: await provider.list(input.collection) });
+    }
+    if (input.action === "record_update" && fields === "action,collection,id,patch" && scope === "admin"
+      && collections.has(input.collection) && validId(input.id) && validRecord(input.collection, input.patch, "admin")
+      && Object.keys(input.patch).length > 0) {
+      return answer(200, { ok: true, data: await provider.update(input.collection, input.id, input.patch) });
+    }
+    if (input.action === "record_delete" && fields === "action,collection,id" && scope === "admin"
+      && collections.has(input.collection) && validId(input.id)) {
+      return answer(200, { ok: true, data: await provider.remove(input.collection, input.id) });
     }
     if (input.action === "page_view" && fields === "action,view" && scope === "ingest" && validView(input.view)) {
       await provider.pageView(input.view);

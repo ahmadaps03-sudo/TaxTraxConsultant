@@ -2,7 +2,8 @@
 
 Use only TaxTrax DEVELOPMENT (`dbcakdqthnamgjfkkxzn`). Production is not a test
 target. Existing authentication, profile RLS and provider-session checks are
-unchanged. SQLite remains local for unrelated website/admin features. Password
+unchanged. Site collections use Supabase Dev; analytics, rate limits and media
+still use local SQLite/filesystem infrastructure. Password
 recovery and invite-only first-time setup use Supabase Auth and a signed EmailJS
 hook. MFA, backend Remember-me persistence and other portal functions remain deferred; this is
 not a production deployment or compliance certification.
@@ -36,6 +37,8 @@ SUPABASE_URL=https://dbcakdqthnamgjfkkxzn.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<Dev sb_publishable_ key>
 AUTH_ORIGIN=http://localhost:3000
 ACCESS_REQUEST_SUBMISSION_SECRET=<scoped Dev submission secret, obtained privately>
+SITE_INGEST_SECRET=<scoped Dev site-submission secret, obtained privately>
+SITE_ADMIN_DATA_SECRET=<scoped Dev site-admin secret, obtained privately>
 ```
 
 Obtain the project URL and publishable key from Helio privately, or from the
@@ -49,6 +52,11 @@ server-only and must never use `NEXT_PUBLIC_*`. Obtain it privately from Hélio.
 It permits pending submissions only, not reads, approval, Auth users or invites.
 Preserve unrelated existing environment values. The desktop's `ADMIN_API_KEY` is
 unrelated to Client Portal login; keep it private if using the admin app.
+The two `SITE_*` values are distinct server-only capabilities for the deployed
+`site-persistence` function, not Supabase service-role keys. The desktop keeps
+using its existing `ADMIN_API_KEY`; never put either scoped capability in the
+Electron renderer. See [site persistence](site-persistence-foundation.md) for
+the five cut-over collections. Local SQLite records were not imported to Dev.
 
 Open **http://localhost:3000/portal** (use localhost consistently). Obtain the
 synthetic shared-Dev email/password from Helio through a password manager/private
@@ -59,7 +67,8 @@ Follow the [Client Portal login/logout manual checks](TESTING.md#client-portal-l
 for expected behaviour and PASS/FAIL criteria.
 If port 3000 is occupied, stop your own earlier dev server deliberately; do not
 silently use another port without updating `AUTH_ORIGIN`. Restart after changing
-environment values. Other dashboard data/controls remain mock content.
+environment values. Portal data features require the shared Dev project;
+see [portal integration](client-portal-integration.md) for their separate setup.
 
 No Docker, Supabase CLI login/link, migration push or Supabase admin key is required for
 Ahmed's portal test. Internet access to the shared Dev project is required.

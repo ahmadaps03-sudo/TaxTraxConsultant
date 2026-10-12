@@ -1,4 +1,4 @@
-import { add } from "@/lib/store";
+import { addSiteSubmission } from "@/lib/site-persistence/client";
 import { validateBooking } from "@/lib/validation";
 import { fail, ok, readJson, sameOrigin, csrfFail, clientIp } from "@/lib/http";
 import { rateLimit } from "@/lib/auth/ratelimit";
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
   if (!b) return fail(400, "Invalid request.");
   const v = validateBooking(b);
   if (!v.ok) return fail(400, "Name, email and phone number are required.", v.fields);
-  await add("bookings", { status: "pending", ...v.value });
+  try { await addSiteSubmission("bookings", { status: "pending", ...v.value }); }
+  catch { return fail(503, "Booking requests are temporarily unavailable. Please try again shortly."); }
   return ok();
 }

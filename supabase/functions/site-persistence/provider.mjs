@@ -1,4 +1,5 @@
 export function siteProvider(url, serviceKey, transport = fetch) {
+  const toRow = row => ({ ...row.data, id: row.id, createdAt: new Date(row.created_at).toISOString() });
   const call = async (path, init) => {
     let endpoint;
     try {
@@ -26,7 +27,7 @@ export function siteProvider(url, serviceKey, transport = fetch) {
         body: JSON.stringify({ id: crypto.randomUUID(), collection, data }) });
       const rows = await response.json();
       if (!Array.isArray(rows) || rows.length !== 1) throw new Error();
-      return { ...rows[0].data, id: rows[0].id, createdAt: new Date(rows[0].created_at).toISOString() };
+      return toRow(rows[0]);
     },
     async list(collection) {
       const result = [];
@@ -34,9 +35,23 @@ export function siteProvider(url, serviceKey, transport = fetch) {
         const response = await call(`site_records?collection=eq.${collection}&select=id,created_at,data&order=created_at.desc,id.desc&limit=1000&offset=${offset}`, { method: "GET" });
         const rows = await response.json();
         if (!Array.isArray(rows)) throw new Error();
-        result.push(...rows.map(row => ({ ...row.data, id: row.id, createdAt: new Date(row.created_at).toISOString() })));
+        result.push(...rows.map(toRow));
         if (rows.length < 1000) return result;
       }
+    },
+    async update(collection, id, patch) {
+      const response = await call("rpc/site_update_record", { method: "POST",
+        body: JSON.stringify({ p_collection: collection, p_id: id, p_patch: patch }) });
+      const rows = await response.json();
+      if (!Array.isArray(rows) || rows.length > 1) throw new Error("Site persistence unavailable.");
+      return rows.length ? toRow(rows[0]) : null;
+    },
+    async remove(collection, id) {
+      const response = await call("rpc/site_delete_record", { method: "POST",
+        body: JSON.stringify({ p_collection: collection, p_id: id }) });
+      const rows = await response.json();
+      if (!Array.isArray(rows) || rows.length > 1) throw new Error("Site persistence unavailable.");
+      return rows.length ? toRow(rows[0]) : null;
     },
     async pageView(view) {
       await call("site_page_views", { method: "POST", body: JSON.stringify(view) });

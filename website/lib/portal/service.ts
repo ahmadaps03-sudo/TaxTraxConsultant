@@ -3,6 +3,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import type { RequestSupabaseClient } from "../supabase/client";
 import { getSupabaseConfiguration } from "../supabase/config";
+import { listSiteRecordsForAdmin, SitePersistenceUnavailable } from "../site-persistence/client";
 
 /**
  * Client Portal data layer on SUPABASE (same project/architecture as login):
@@ -90,17 +91,19 @@ export function buildBilling(invoiceRows: InvoiceRow[], paymentRows: PaymentRow[
   };
 }
 
-/* ---------- appointments: bookings still live in the website's SQLite until they move to Supabase ---------- */
+/* ---------- appointments ---------- */
 async function appointmentsFor(email: string) {
   try {
-    const { db: sqlite } = await import("../db");
+    const rows = await listSiteRecordsForAdmin("bookings");
     const today = new Date().toISOString().slice(0, 10);
-    const rows = sqlite().prepare("SELECT id, data FROM records WHERE collection='bookings' AND lower(json_extract(data,'$.email')) = ?").all(email.toLowerCase()) as { id: string; data: string }[];
-    return rows.map((r) => ({ id: r.id, ...JSON.parse(r.data) }))
-      .filter((b) => ["pending", "confirmed"].includes(b.status) && typeof b.date === "string" && b.date >= today)
+    return rows.filter((row) => typeof row.email === "string" && row.email.toLowerCase() === email.toLowerCase())
+      .filter((b): b is typeof b & { date: string; status: string } => typeof b.status === "string" && ["pending", "confirmed"].includes(b.status) && typeof b.date === "string" && b.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((b) => ({ id: String(b.id), date: b.date as string, time: String(b.time ?? ""), service: String(b.service || "Consultation"), status: b.status as string }));
-  } catch { return []; }
+  } catch (error) {
+    if (error instanceof SitePersistenceUnavailable) throw new PortalError(503, "Appointments are temporarily unavailable.");
+    throw error;
+  }
 }
 
 /* ---------- read model: one call powers every tab ---------- */

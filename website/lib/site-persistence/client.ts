@@ -62,5 +62,32 @@ export const addSiteContent = (collection: "posts" | "videos", data: Record<stri
 export const listSiteRecordsForAdmin = (collection: SiteCollection) =>
   call<SiteRow[]>("admin", { action: "record_list", collection });
 
+export async function listPublishedSiteContent(collection: "posts" | "videos"): Promise<SiteRow[]> {
+  try {
+    const { url, key } = getSupabaseConfiguration();
+    const rows: SiteRow[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const query = new URLSearchParams({ collection: `eq.${collection}`, select: "id,created_at,data", order: "created_at.desc,id.desc", limit: "1000", offset: String(offset) });
+      const response = await fetch(`${url}/rest/v1/site_records?${query}`, {
+        headers: { apikey: key }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error();
+      const page: unknown = await response.json();
+      if (!Array.isArray(page)) throw new Error();
+      for (const row of page) {
+        if (!row || typeof row !== "object" || row.data?.published !== true || typeof row.id !== "string" || typeof row.created_at !== "string") throw new Error();
+        rows.push({ ...row.data, id: row.id, createdAt: new Date(row.created_at).toISOString() });
+      }
+      if (page.length < 1000) return rows;
+    }
+  } catch { throw new SitePersistenceUnavailable(); }
+}
+
+export const updateSiteRecordForAdmin = (collection: SiteCollection, id: string, patch: Record<string, unknown>) =>
+  call<SiteRow | null>("admin", { action: "record_update", collection, id, patch });
+
+export const deleteSiteRecordForAdmin = (collection: SiteCollection, id: string) =>
+  call<SiteRow | null>("admin", { action: "record_delete", collection, id });
+
 export const writeSitePageView = (view: SitePageView) =>
   call<void>("ingest", { action: "page_view", view });

@@ -3,6 +3,7 @@ import { stat } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import { UPLOAD_DIR } from "@/lib/store";
+import { listPublishedSiteContent } from "@/lib/site-persistence/client";
 
 export const dynamic = "force-dynamic";
 const MIME: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
@@ -11,12 +12,17 @@ const MIME: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov
 export async function GET(req: Request, { params }: { params: { file: string } }) {
   const name = params.file;
   if (!/^[a-f0-9-]{36}\.(mp4|webm|mov)$/.test(name)) return new Response("Not found", { status: 404 });
+  let published: boolean;
+  try {
+    published = (await listPublishedSiteContent("videos")).some((video) => video.published === true && video.kind === "file" && video.file === name);
+  } catch { return new Response("Media is temporarily unavailable", { status: 503, headers: { "Cache-Control": "no-store" } }); }
+  if (!published) return new Response("Not found", { status: 404 });
   const full = path.join(UPLOAD_DIR, name);
   const st = await stat(full).catch(() => null);
   if (!st) return new Response("Not found", { status: 404 });
 
   let start = 0, end = st.size - 1, status = 200;
-  const headers: Record<string, string> = { "Content-Type": MIME[name.split(".")[1]], "Accept-Ranges": "bytes", "Cache-Control": "public, max-age=86400" };
+  const headers: Record<string, string> = { "Content-Type": MIME[name.split(".")[1]], "Accept-Ranges": "bytes", "Cache-Control": "no-store" };
   const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") || "");
   if (m && (m[1] || m[2])) {
     if (m[1]) { start = parseInt(m[1], 10); if (m[2]) end = Math.min(parseInt(m[2], 10), st.size - 1); }

@@ -39,7 +39,8 @@
     "test:portal": "node --test scripts/portal-integration.test.mjs",
     "test:client-portal": "node --test scripts/client-portal.test.mjs",
     "test:site-persistence": "node --test scripts/site-persistence.test.mjs",
-    "test:site-persistence:db": "node --test scripts/site-persistence-db.test.mjs"
+    "test:site-persistence:db": "node --test scripts/site-persistence-db.test.mjs",
+    "test:site-cutover": "node --test scripts/site-cutover.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.8.0",

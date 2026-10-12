@@ -24,12 +24,13 @@ Checkpoint 6 connects the existing portal UI to the server authentication bounda
 see [portal integration and browser tests](docs/portal-auth-integration.md).
 Login/logout is functional for synthetic local accounts. Other dashboard data
 and controls remain mock/unimplemented; do not introduce sensitive client data.
-Existing SQLite/filesystem features remain unchanged; the older backend-phase
+Site collections now use Supabase Dev; analytics, rate limits and media remain
+local. The older backend-phase
 suggestions later in this README are historical, not the current architecture decision.
 
 Full frontend for TaxTrax Consulting, built to the attached `Website_Format.pdf` spec, in your
-black/crimson brand identity instead of the mockup's navy/gold. Contact, booking and calculator-lead forms now post to `/api/*` (JSON-file store in
-`lib/store.ts`) and are managed from the separate desktop app in `../admin-app`. See `../README.md`
+black/crimson brand identity instead of the mockup's navy/gold. Contact, booking and calculator-lead forms post to `/api/*` (Supabase-backed site records)
+and are managed from the separate desktop app in `../admin-app`. See `../README.md`
 for setup. Other content still lives in `lib/data.ts`.
 
 ## If `npm run dev` fails with an SWC error on Windows

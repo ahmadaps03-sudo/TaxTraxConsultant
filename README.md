@@ -23,12 +23,14 @@ website, and the desktop app reads them through `/api/admin/*`, protected by a s
 ## Client Portal on shared Development (no Docker)
 Follow [website/docs/shared-dev.md](website/docs/shared-dev.md) for Windows setup,
 the unprivileged Dev environment values and the privately shared synthetic login.
-Existing SQLite/admin features remain local and separate; Production is not a test target.
+Site collections use shared Supabase Dev; analytics, rate limits and media remain
+local for now. Production is not a test target.
 
 ## What changed in this version (read first)
-- **Database:** the website now stores everything in a real SQLite database (`website/data/taxtrax.db`)
-  instead of a JSON file. Run `npm install` again inside `website/` (it adds `better-sqlite3`). Existing
-  `data/db.json` content is imported automatically on first start.
+- **Persistence:** site collections (messages, bookings, leads, posts and video metadata)
+  use Supabase Dev. SQLite (`website/data/taxtrax.db`) remains for analytics,
+  rate limits and legacy data; media files remain local. Local SQLite records
+  were not imported to shared Dev.
 - The site's contact details (WhatsApp, address, phone, email, hours) live in `website/lib/contact.ts`,
   and all prices in `website/lib/pricing.ts`. Edit those two files and the whole site updates.
 - Tax calculators open as pop-ups; their rates live in `website/lib/tax-calc.ts`.

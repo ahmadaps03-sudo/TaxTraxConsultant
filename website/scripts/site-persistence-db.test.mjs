@@ -17,6 +17,13 @@ const sql = (source) => {
 test("local disposable Postgres enforces site grants, RLS, validation and atomic rate limits", { timeout: 120000 }, async () => {
   docker("run", "--rm", "-d", "--name", container, "-e", "POSTGRES_PASSWORD=synthetic_test_password", "postgres:17-alpine");
   try {
+    let initialized = false;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const logs = spawnSync("docker", ["logs", container], { encoding: "utf8" });
+      if (`${logs.stdout}${logs.stderr}`.includes("PostgreSQL init process complete")) { initialized = true; break; }
+      await pause(200);
+    }
+    assert.ok(initialized, "Disposable Postgres did not finish initialization");
     let ready = false;
     for (let attempt = 0; attempt < 50; attempt++) {
       try { sql("select 1;"); ready = true; break; } catch { await pause(200); }
@@ -27,6 +34,8 @@ test("local disposable Postgres enforces site grants, RLS, validation and atomic
     sql(migration);
     const publication = await readFile(new URL("../../supabase/migrations/20261013000200_site_explicit_publication.sql", import.meta.url), "utf8");
     sql(publication);
+    const mutations = await readFile(new URL("../../supabase/migrations/20261013000300_site_record_admin_mutations.sql", import.meta.url), "utf8");
+    sql(mutations);
 
     sql(`insert into public.site_records(id,collection,data,created_at) values
       ('seed-post','posts','{"slug":"synthetic","published":true}'::jsonb,'2026-10-12T12:00:00Z'),
@@ -43,7 +52,16 @@ test("local disposable Postgres enforces site grants, RLS, validation and atomic
     assert.equal(sql("select has_table_privilege('anon','public.site_records','INSERT') or has_table_privilege('authenticated','public.site_records','UPDATE') or has_table_privilege('authenticated','public.site_records','DELETE');"), "f");
     assert.equal(sql("select has_table_privilege('anon','public.site_page_views','SELECT') or has_table_privilege('authenticated','public.site_page_views','INSERT');"), "f");
     assert.equal(sql("select has_function_privilege('anon','public.site_take_rate_limit(text,integer,integer)','EXECUTE');"), "f");
+    assert.equal(sql("select has_function_privilege('anon','public.site_update_record(text,text,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.site_delete_record(text,text)','EXECUTE');"), "f");
+    assert.equal(sql("select has_function_privilege('service_role','public.site_update_record(text,text,jsonb)','EXECUTE') and has_function_privilege('service_role','public.site_delete_record(text,text)','EXECUTE');"), "t");
     assert.equal(sql("select id,created_at from public.site_records where id='seed-post';"), "seed-post|2026-10-12 12:00:00+00");
+    assert.equal(sql("set role service_role; select id,created_at,data->>'published' from public.site_update_record('posts','draft-post','{\"published\":true}'::jsonb); reset role;"), "draft-post|2026-10-12 12:00:00+00|true");
+    assert.equal(sql("select data->>'slug' from public.site_records where id='draft-post';"), "synthetic-draft");
+    assert.equal(sql("set role anon; select string_agg(id,',' order by id) from public.site_records; reset role;"), "draft-post,seed-post,seed-video");
+    assert.equal(sql("set role service_role; select count(*) from public.site_update_record('posts','private-message','{\"read\":true}'::jsonb); reset role;"), "0");
+    assert.equal(sql("set role service_role; select count(*) from public.site_delete_record('posts','private-message'); reset role;"), "0");
+    assert.equal(sql("set role service_role; select id,created_at from public.site_delete_record('messages','private-message'); reset role;"), "private-message|2026-10-12 12:00:00+00");
+    assert.equal(sql("select count(*) from public.site_records where id='private-message';"), "0");
     sql("set role service_role; insert into public.site_records(id,collection,data) values('server-only','messages','{\"name\":\"Synthetic\"}'); reset role;");
     assert.equal(sql("select count(*) from public.site_records where id='server-only';"), "1");
     assert.equal(sql("select has_table_privilege('service_role','private.site_rate_limits','SELECT');"), "f");
