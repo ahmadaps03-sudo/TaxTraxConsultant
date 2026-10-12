@@ -241,6 +241,26 @@ Report D1–D7 PASS/FAIL, browser/desktop version, and sanitized screenshots/err
 Do not include admin keys, passwords or activation URLs. If EmailJS delivery is
 delayed or absent, record D6 separately from database/portal checks.
 
+## Client Portal data integration (shared Dev)
+
+Prerequisites: complete `shared-dev.md`, use synthetic active clients A and B,
+and have the Dev-only portal security migration and `portal-admin` function
+deployed. Do not upload real tax documents. The staff API additionally requires
+the server-only setup in `client-portal-integration.md`.
+
+| Check | Action | PASS criteria |
+| --- | --- | --- |
+| P1 | Open `/portal` signed out, then sign in as active client A. | Login remains unchanged; the authenticated shell displays Dashboard, Documents, Checklist, E-Signature, Billing & Payments, Tax Years, and Profile, with no Messages item. |
+| P2 | Refresh, navigate all tabs, save synthetic contact details, and complete a self-service checklist item. | Saved values survive refresh; another client's values never appear. |
+| P3 | Upload and download a harmless synthetic document; try a cross-client document ID/path. | A sees only A's file; B cannot read, overwrite, or delete it. Reviewed files cannot be deleted by the client. |
+| P4 | Sign a synthetic test document and report a synthetic test payment. | Only the signed-in client's own records change; payment remains pending review. Do not treat this as a legal or financial acceptance test. |
+| P5 | Suspend or revoke A's provider session, then refresh and call a client API. | A loses access, including with an otherwise unexpired JWT; B remains unaffected. |
+| P6 | With the website backend running, call staff `clientdata` without and with the valid existing admin key. | Missing/wrong key is denied; valid staff access returns only the intended synthetic client data. No privileged key appears in the renderer. |
+| P7 | Log out, use browser Back, and refresh `/portal`. | Login is shown; protected content is not restored. Public Contact and admin Messages still work independently. |
+
+Report P1–P7 PASS/FAIL with browser/desktop version and sanitized failures.
+These checks are pending until the Dev-only migration, function, and secret are ready.
+
 ## Safe automated checks
 
 In a second terminal, from `website`, run:
@@ -252,11 +272,12 @@ npm run test:recovery
 npm run test:activation
 npm run test:access-requests
 npm run test:admin-access-requests
+npm run test:client-portal
 npx tsc --noEmit
 git diff --check
 ```
 
-PASS means all six test suites finish with no failures, TypeScript reports no
+PASS means all seven test suites finish with no failures, TypeScript reports no
 errors, and `git diff --check` reports no whitespace errors. These commands do
 not reset or seed the shared database and do not replace the manual checks.
 

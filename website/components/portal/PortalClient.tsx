@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CreateAccountForm } from "./CreateAccountForm";
+import { PortalTabs } from "./PortalTabs";
 
 const logoutFailure = "Unable to confirm sign-out. Please try again.";
 
@@ -48,18 +49,6 @@ async function submitAuth(endpoint: "login" | "logout", body: { email: string; p
   return { success: response.ok && result?.ok === true, status: response.status };
 }
 
-
-const CHECKLIST = [
-  { label: "Upload 2025 W-2 / salary certificate", status: "Completed" as const },
-  { label: "Review & sign engagement letter", status: "Pending" as const },
-  { label: "Review draft return & e-sign", status: "Needs Action" as const },
-];
-
-const DOCUMENTS = [
-  { name: "W-2_2026.pdf", tag: "W-2", date: "Jan 15, 2026" },
-  { name: "1099-INT.pdf", tag: "1099", date: "Jan 12, 2026" },
-  { name: "Business_Expenses.xlsx", tag: "Expenses", date: "Jan 5, 2026" },
-];
 
 type View = "login" | "signup";
 const SIGNUP_HASH = "#create-account";
@@ -369,81 +358,11 @@ export function PortalDashboard({ name, logoutUnconfirmed = false }: { name: str
 
         {error && <p role="alert" className="mt-4 text-sm text-signal">{error}</p>}
 
-        {active === "Dashboard" && (
-          <>
-            <div className="mt-6 grid grid-cols-3 gap-4">
-              <Stat label="Tax year" value="2025 · In progress" delay={80} />
-              <Stat label="Pending tasks" value="3" delay={160} />
-              <Stat label="Documents awaiting review" value="2" delay={240} />
-            </div>
+        <PortalTabs active={active} onNavigate={setActive} />
 
-            <div className="mt-8 grid gap-6 lg:grid-cols-2">
-              <div className="card-flat ap-rise p-6" style={{ animationDelay: "300ms" }}>
-                <h2 className="font-serif text-lg text-paper">Document upload</h2>
-                <div className="mt-4 flex h-32 flex-col items-center justify-center border border-dashed border-line text-center text-sm text-smoke">
-                  <p>Drag and drop your files here</p>
-                  <p className="text-xs">PDF, JPG, Excel (max 25 MB)</p>
-                </div>
-                <p className="mt-3 text-xs text-smoke">TODO(backend): wire to Vercel Blob or Cloudinary upload + a Document model tagged by tax year.</p>
-
-                <h3 className="mt-6 text-sm font-medium text-paper">Recent documents</h3>
-                <ul className="mt-2 divide-y divide-line">
-                  {DOCUMENTS.map((document) => (
-                    <li key={document.name} className="flex items-center justify-between py-2 text-sm">
-                      <span className="text-paper/85">{document.name}</span>
-                      <span className="text-xs text-smoke">{document.tag} · {document.date}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="card-flat ap-rise p-6" style={{ animationDelay: "380ms" }}>
-                <h2 className="font-serif text-lg text-paper">Your checklist</h2>
-                <ul className="mt-4 space-y-3">
-                  {CHECKLIST.map((item) => (
-                    <li key={item.label} className="flex items-center justify-between border-b border-line pb-3 last:border-0 text-sm">
-                      <span className="text-paper/85">{item.label}</span>
-                      <StatusPill status={item.status} />
-                    </li>
-                  ))}
-                </ul>
-
-                <h3 className="mt-6 text-sm font-medium text-paper">Upcoming appointments</h3>
-                <p className="mt-2 text-sm text-smoke">No upcoming appointments.</p>
-                <a href="/book-consultation" className="mt-3 inline-block bg-signal px-4 py-2 text-sm font-medium text-ink hover:bg-ember transition-colors focus-ring">
-                  Book a consultation
-                </a>
-              </div>
-            </div>
-          </>
-        )}
-
-        {active !== "Dashboard" && (
-          <div className="card-flat mt-8 p-7 text-center text-sm text-smoke">
-            {active} — connects to the backend once the client data model and storage are wired up.
-          </div>
-        )}
       </div>
     </div>
   );
-}
-
-function Stat({ label, value, delay = 0 }: { label: string; value: string; delay?: number }) {
-  return (
-    <div className="ap-rise rounded-lg border border-line p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-signal hover:shadow-sm" style={{ animationDelay: `${delay}ms` }}>
-      <p className="text-xs text-smoke">{label}</p>
-      <p className="mt-1 font-serif text-lg text-paper">{value}</p>
-    </div>
-  );
-}
-
-function StatusPill({ status }: { status: "Completed" | "Pending" | "Needs Action" }) {
-  const styles = {
-    Completed: "text-ok border-ok",
-    Pending: "text-smoke border-line",
-    "Needs Action": "text-signal border-signal",
-  } as const;
-  return <span className={`border px-2 py-0.5 text-xs ${styles[status]}`}>{status}</span>;
 }
 
 function SignOutOverlay({ done }: { done: boolean }) {

@@ -307,16 +307,14 @@ test("login layout, password toggle, recovery link and invitation guidance remai
   assert.ok((await brand.boundingBox()).y < (await form.boundingBox()).y, "Mobile brand/form stacking must remain intact");
 });
 
-test("unrelated dashboard mock data, navigation and copy remain unchanged", async () => {
+test("authenticated portal keeps its navigation while the data tabs are isolated from auth tests", async () => {
   assert.equal(await loginUI(), 200);
   await dashboard();
-  for (const text of ["2025 · In progress", "Pending tasks", "Documents awaiting review", "W-2_2026.pdf", "1099-INT.pdf", "Business_Expenses.xlsx", "Upload 2025 W-2 / salary certificate", "Review & sign engagement letter", "Review draft return & e-sign", "No upcoming appointments."]) {
-    assert.equal(await page.getByText(text, { exact: true }).isVisible(), true);
-  }
+  assert.equal(await page.getByTestId("auth-test-portal-tabs").textContent(), "Dashboard");
   await page.getByRole("button", { name: "Documents", exact: true }).click();
-  assert.equal(await page.getByText("Documents — connects to the backend once the client data model and storage are wired up.", { exact: true }).isVisible(), true);
+  assert.equal(await page.getByTestId("auth-test-portal-tabs").textContent(), "Documents");
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-  assert.equal(await page.getByRole("heading", { name: "Your checklist", exact: true }).isVisible(), true);
+  assert.equal(await page.getByTestId("auth-test-portal-tabs").textContent(), "Dashboard");
 });
 
 test("profile/provider infrastructure failures never render authenticated content", async () => {

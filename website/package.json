@@ -36,7 +36,8 @@
     "test:authz": "node --test scripts/client-profiles-authz.test.mjs",
     "test:session": "node --test scripts/server-session.test.mjs",
     "test:auth-handlers": "node --test scripts/auth-handlers.test.mjs",
-    "test:portal": "node --test scripts/portal-integration.test.mjs"
+    "test:portal": "node --test scripts/portal-integration.test.mjs",
+    "test:client-portal": "node --test scripts/client-portal.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.8.0",

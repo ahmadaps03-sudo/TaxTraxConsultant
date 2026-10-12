@@ -38,6 +38,16 @@ export async function sessionTestBuild(additionalFiles = [], { realPortal = fals
     await writeFile(compiledPath, output);
     await writeFile(harnessPath, source);
   }
+  if (realPortal && !additionalFiles.includes("components/portal/PortalTabs.tsx")) {
+    const filename = "components/portal/PortalTabs.tsx";
+    const source = '"use client"; export function PortalTabs({active}: {active: string; onNavigate: (tab: string) => void}) { return <div data-testid="auth-test-portal-tabs">{active}</div>; }';
+    const output = typescript.transpileModule(source, { fileName: filename, compilerOptions: { target: typescript.ScriptTarget.ES2022, module: typescript.ModuleKind.CommonJS, jsx: typescript.JsxEmit.ReactJSX } }).outputText;
+    for (const [root, content, extension] of [[compiled, output, ".js"], [harness, source, ".tsx"]]) {
+      const target = path.join(root, filename.replace(/\.tsx$/, extension));
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, content);
+    }
+  }
   await writeFile(path.join(compiled, "package.json"), '{"type":"commonjs"}');
   await writeFile(path.join(harness, "package.json"), JSON.stringify({ private: true, dependencies: { next: "14.2.35", react: "18.3.1", "react-dom": "18.3.1" } }));
   await writeFile(path.join(harness, "next.config.js"), await readFile(path.join(website, "next.config.js")));
