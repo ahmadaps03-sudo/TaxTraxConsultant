@@ -60,15 +60,41 @@ records with `published: true` are visible. Portal appointments are matched to
 the validated client's email on the server. No SQLite fallback or dual-write
 is used for these collections.
 
-Local video files have not moved to Storage. Their existing media endpoint now
-requires matching published video metadata before streaming and does not cache
-the response, so unpublishing removes direct file access on the next request.
+The Slice 3 code moves site video files to a separate private `site-videos`
+Storage bucket; it is **not deployed to shared Dev yet**. The Electron main
+process obtains a scoped signed upload URL through the existing admin-key
+website API, uploads directly to Storage, then creates the video metadata.
+The maximum supported upload is **50 MB** (MP4, WebM or MOV). The renderer
+never receives the scoped capability or service-role key. Existing
+`/api/media/<file>` links remain valid after rollout: only published metadata
+can obtain a 60-second signed Storage playback URL. Unpublishing blocks new
+links immediately; an already-issued signed URL can remain usable for up to
+60 seconds. Drafts and missing-published records are not public.
+
+Video deletion first hides metadata, then removes the Storage object, then
+deletes metadata. If cleanup fails, the hidden record remains retryable.
+Failed uploads attempt immediate object cleanup. Abandoned uploads are
+eligible for owner-only cleanup after three hours (the upload permission
+expires sooner). Run `node scripts/site-video-orphans-dev.mjs status` to audit
+or `node scripts/site-video-orphans-dev.mjs cleanup` to remove eligible
+unreferenced objects in the approved Dev project only. Do not put credentials
+or signed URLs into logs. Existing local media files are not imported.
+
+Before Dev use, the owner must review/apply
+`20261014000100_site_video_storage.sql` and redeploy `site-persistence` to
+**Dev only**, retaining the existing scoped secrets. Confirm the bucket is
+private, its file-size/MIME restrictions and restrictive object policy are
+effective, and the project-wide Storage file-size setting permits 50 MB.
+Check that existing Dev video metadata has no local-only file references,
+then perform a synthetic upload, published/draft playback, Range request,
+delete and orphan audit. No new secret is required. This is not a Production
+rollout.
 
 The local SQLite records were intentionally **not** imported to shared Dev, so
 those records no longer appear in the shared Dev website/Admin views. Keep the
 local database as a rollback/reference source; do not delete it. Media files,
 page-view storage, rate limits and the legacy Admin client count still depend
-on local SQLite/filesystem infrastructure and are outside this cutover. This is
+on local SQLite infrastructure and are outside this cutover. This is
 not yet a Vercel-ready or Production deployment.
 
 `npm run test:site-cutover` checks route contracts and portal booking isolation

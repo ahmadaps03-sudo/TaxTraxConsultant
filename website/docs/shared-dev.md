@@ -2,8 +2,10 @@
 
 Use only TaxTrax DEVELOPMENT (`dbcakdqthnamgjfkkxzn`). Production is not a test
 target. Existing authentication, profile RLS and provider-session checks are
-unchanged. Site collections use Supabase Dev; analytics, rate limits and media
-still use local SQLite/filesystem infrastructure. Password
+unchanged. Site collections use Supabase Dev; analytics and rate limits still
+use local SQLite infrastructure. The site-video Storage change is pending Dev
+rollout; video uploads remain unavailable until its migration and Edge Function
+are deployed. Password
 recovery and invite-only first-time setup use Supabase Auth and a signed EmailJS
 hook. MFA, backend Remember-me persistence and other portal functions remain deferred; this is
 not a production deployment or compliance certification.

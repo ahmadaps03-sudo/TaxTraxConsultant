@@ -1,36 +1,21 @@
-import { createReadStream } from "fs";
-import { stat } from "fs/promises";
-import path from "path";
-import { Readable } from "stream";
-import { UPLOAD_DIR } from "@/lib/store";
-import { listPublishedSiteContent } from "@/lib/site-persistence/client";
+import { listPublishedSiteContent, signSiteVideoPlayback } from "@/lib/site-persistence/client";
+import { getSupabaseConfiguration } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
-const MIME: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
+const FILE = /^[a-f0-9-]{36}\.(mp4|webm|mov)$/;
+const HEADERS = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex" };
 
-/** Public video streaming with HTTP Range support (needed for seeking in <video>). */
-export async function GET(req: Request, { params }: { params: { file: string } }) {
-  const name = params.file;
-  if (!/^[a-f0-9-]{36}\.(mp4|webm|mov)$/.test(name)) return new Response("Not found", { status: 404 });
-  let published: boolean;
+export async function GET(_request: Request, { params }: { params: { file: string } }) {
+  const file = params.file;
+  if (!FILE.test(file)) return new Response("Not found", { status: 404, headers: HEADERS });
   try {
-    published = (await listPublishedSiteContent("videos")).some((video) => video.published === true && video.kind === "file" && video.file === name);
-  } catch { return new Response("Media is temporarily unavailable", { status: 503, headers: { "Cache-Control": "no-store" } }); }
-  if (!published) return new Response("Not found", { status: 404 });
-  const full = path.join(UPLOAD_DIR, name);
-  const st = await stat(full).catch(() => null);
-  if (!st) return new Response("Not found", { status: 404 });
-
-  let start = 0, end = st.size - 1, status = 200;
-  const headers: Record<string, string> = { "Content-Type": MIME[name.split(".")[1]], "Accept-Ranges": "bytes", "Cache-Control": "no-store" };
-  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") || "");
-  if (m && (m[1] || m[2])) {
-    if (m[1]) { start = parseInt(m[1], 10); if (m[2]) end = Math.min(parseInt(m[2], 10), st.size - 1); }
-    else { start = Math.max(0, st.size - parseInt(m[2], 10)); }
-    if (start > end || start >= st.size) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${st.size}` } });
-    status = 206;
-    headers["Content-Range"] = `bytes ${start}-${end}/${st.size}`;
-  }
-  headers["Content-Length"] = String(end - start + 1);
-  return new Response(Readable.toWeb(createReadStream(full, { start, end })) as unknown as ReadableStream, { status, headers });
+    const published = (await listPublishedSiteContent("videos"))
+      .some((video) => video.published === true && video.kind === "file" && video.file === file);
+    if (!published) return new Response("Not found", { status: 404, headers: HEADERS });
+    const signed = await signSiteVideoPlayback(file);
+    const { url } = getSupabaseConfiguration();
+    const target = new URL(signed.url);
+    if (target.origin !== url || target.pathname !== `/storage/v1/object/sign/site-videos/${file}` || !target.searchParams.has("token")) throw new Error();
+    return new Response(null, { status: 307, headers: { ...HEADERS, Location: target.toString() } });
+  } catch { return new Response("Media is temporarily unavailable", { status: 503, headers: HEADERS }); }
 }

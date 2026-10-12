@@ -64,18 +64,7 @@ check("video shows on Resources page", (await text("/resources")).body.includes(
 r = await call("/api/admin/videos", "POST", { kind: "youtube", youtube: "not a link", title: "x" });
 check("bad YouTube link rejected", r.status === 400);
 
-// real file upload (tiny fake mp4 body) then public streaming with Range
-const up = await fetch(base + "/api/admin/upload", { method: "POST", headers: { "x-admin-key": key, "content-type": "video/mp4" }, body: new Uint8Array(2048) });
-const upj = await up.json();
-check("video file upload works", up.status === 200 && !!upj.data?.file, JSON.stringify(upj));
-const bad = await fetch(base + "/api/admin/upload", { method: "POST", headers: { "x-admin-key": key, "content-type": "text/html" }, body: "<b>x</b>" });
-check("non-video upload rejected", bad.status === 415);
-const rng = await fetch(base + "/api/media/" + upj.data?.file, { headers: { range: "bytes=0-99" } });
-check("media streams with Range (206)", rng.status === 206 && (await rng.arrayBuffer()).byteLength === 100);
-r = await call("/api/admin/videos", "POST", { kind: "file", file: upj.data?.file, title: "File " + tag });
-check("uploaded file attached to a video record", r.status === 200);
-for (const row of [vid, r.json.data]) if (row) await call("/api/admin/videos?id=" + row.id, "DELETE");
-check("deleting a video removes its file", (await fetch(base + "/api/media/" + upj.data?.file)).status === 404);
+for (const row of [vid]) if (row) await call("/api/admin/videos?id=" + row.id, "DELETE");
 
 // ---- analytics ----
 r = await call("/api/admin/analytics");

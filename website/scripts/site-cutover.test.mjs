@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { createServer } from "node:http";
 import test from "node:test";
 import typescript from "typescript";
 
@@ -133,34 +134,62 @@ test("public content excludes drafts and missing publication", async () => {
   assert.doesNotMatch(xml, /\/blog\/(?:draft|missing)/);
 });
 
-test("direct local video URLs require published Supabase metadata", async () => {
+test("media redirects only published video metadata to a scoped signed Storage URL", async () => {
   const filename = "00000000-0000-4000-8000-000000000000.mp4";
   let videos = [];
   let unavailable = false;
-  let fileReads = 0;
+  const url = "https://synthetic.supabase.co";
   const media = await load("app/api/media/[file]/route.ts", {
-    "fs": { createReadStream: () => { fileReads++; return nativeRequire("node:stream").Readable.from(Buffer.from("hello")); } },
-    "fs/promises": { stat: async () => ({ size: 5 }) },
-    "@/lib/store": { UPLOAD_DIR: "/tmp/taxtrax-synthetic-unused" },
-    "@/lib/site-persistence/client": { listPublishedSiteContent: async () => { if (unavailable) throw new Error("private provider detail"); return videos; } },
+    "@/lib/supabase/config": { getSupabaseConfiguration: () => ({ url }) },
+    "@/lib/site-persistence/client": {
+      listPublishedSiteContent: async () => { if (unavailable) throw new Error("private provider detail"); return videos; },
+      signSiteVideoPlayback: async () => ({ url: `${url}/storage/v1/object/sign/site-videos/${filename}?token=synthetic` }),
+    },
   });
   const get = () => media.GET(request(`/api/media/${filename}`), { params: { file: filename } });
   for (const published of [false, undefined]) {
     videos = [{ kind: "file", file: filename, published }];
     assert.equal((await get()).status, 404);
   }
-  assert.equal(fileReads, 0);
   videos = [{ kind: "file", file: filename, published: true }];
   const visible = await get();
-  assert.equal(visible.status, 200);
+  assert.equal(visible.status, 307);
   assert.equal(visible.headers.get("cache-control"), "no-store");
-  assert.equal(await visible.text(), "hello");
-  assert.equal(fileReads, 1);
+  assert.equal(visible.headers.get("location"), `${url}/storage/v1/object/sign/site-videos/${filename}?token=synthetic`);
   unavailable = true;
   const failed = await get();
   assert.equal(failed.status, 503);
   assert.equal(failed.headers.get("cache-control"), "no-store");
   assert.ok(!(await failed.text()).includes("private provider detail"));
+});
+
+test("media redirect preserves browser Range requests to signed playback target", async () => {
+  const filename = "00000000-0000-4000-8000-000000000000.mp4";
+  let rangeSeen = null;
+  const storage = createServer((req, res) => {
+    rangeSeen = req.headers.range;
+    res.writeHead(206, { "Content-Range": "bytes 0-3/8", "Content-Type": "video/mp4" });
+    res.end("test");
+  });
+  await new Promise(resolve => storage.listen(0, "127.0.0.1", resolve));
+  try {
+    const url = `http://127.0.0.1:${storage.address().port}`;
+    const media = await load("app/api/media/[file]/route.ts", {
+      "@/lib/supabase/config": { getSupabaseConfiguration: () => ({ url }) },
+      "@/lib/site-persistence/client": {
+        listPublishedSiteContent: async () => [{ kind: "file", file: filename, published: true }],
+        signSiteVideoPlayback: async () => ({ url: `${url}/storage/v1/object/sign/site-videos/${filename}?token=synthetic` }),
+      },
+    });
+    const redirect = await media.GET(request(`/api/media/${filename}`, "GET", undefined, { Range: "bytes=0-3" }), { params: { file: filename } });
+    assert.equal(redirect.status, 307);
+    const playback = await fetch(redirect.headers.get("location"), { headers: { Range: "bytes=0-3" } });
+    assert.equal(playback.status, 206);
+    assert.equal(rangeSeen, "bytes=0-3");
+    assert.equal(await playback.text(), "test");
+  } finally {
+    await new Promise(resolve => storage.close(resolve));
+  }
 });
 
 test("portal appointments match only the server-validated client email", async () => {

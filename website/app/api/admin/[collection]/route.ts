@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
-import { add, list, remove, summary, update, UPLOAD_DIR, type Collection } from "@/lib/store";
+import { add, list, remove, summary, update, type Collection } from "@/lib/store";
 import { getAnalytics } from "@/lib/analytics";
 import { buildPost, buildVideo } from "@/lib/content";
 import { bad, clean, requireAdmin } from "@/lib/api";
@@ -77,9 +75,6 @@ export async function DELETE(req: Request, { params }: Ctx) {
   try {
     const row = await remove(params.collection as Collection, id);
     if (!row) return bad("Not found", 404);
-    if (params.collection === "videos" && row.kind === "file" && typeof row.file === "string" && /^[a-f0-9-]{36}\.\w+$/.test(row.file)) {
-      await fs.unlink(path.join(UPLOAD_DIR, row.file)).catch(() => {});
-    }
     return adminResponse();
   } catch { return unavailable(); }
 }

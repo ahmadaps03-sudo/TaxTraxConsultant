@@ -78,7 +78,9 @@ ipcMain.handle("video:pick", async () => {
   const r = await dialog.showOpenDialog({ properties: ["openFile"], filters: [{ name: "Video (MP4, WebM, MOV)", extensions: ["mp4", "webm", "mov"] }] });
   if (r.canceled) return null;
   picked = r.filePaths[0];
-  return { name: path.basename(picked), size: fs.statSync(picked).size };
+  const size = fs.statSync(picked).size;
+  if (size < 1 || size > 50 * 1024 * 1024) { picked = null; throw new Error("Choose a video of 50 MB or smaller."); }
+  return { name: path.basename(picked), size };
 });
 
 ipcMain.handle("video:upload", async (_e, { title, category, description }) => {
@@ -88,19 +90,29 @@ ipcMain.handle("video:upload", async (_e, { title, category, description }) => {
   const type = { mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" }[path.extname(picked).slice(1).toLowerCase()];
   if (!type) throw new Error("Unsupported video type.");
   const size = fs.statSync(picked).size;
-  if (size > 500 * 1024 * 1024) throw new Error("Video is larger than 500 MB.");
-  const up = await fetch(serverUrl + "/api/admin/upload", {
-    method: "POST",
-    headers: { "x-admin-key": key, "content-type": type, "content-length": String(size) },
-    body: Readable.toWeb(fs.createReadStream(picked)),
-    duplex: "half",
-    signal: AbortSignal.timeout(30 * 60 * 1000),
-  });
-  const j = await up.json().catch(() => ({}));
-  if (!up.ok) throw new Error(j.error || `Upload failed (${up.status})`);
-  const row = await apiRequest({ path: "/api/admin/videos", method: "POST", body: { kind: "file", file: j.data.file, title, category, description, published: true } });
-  picked = null;
-  return row;
+  if (size < 1 || size > 50 * 1024 * 1024) throw new Error("Video is larger than 50 MB.");
+  const signed = await apiRequest({ path: "/api/admin/upload", method: "POST", body: { size, contentType: type } });
+  let target;
+  try { target = new URL(signed.uploadUrl); } catch { throw new Error("Invalid video upload destination."); }
+  const approvedHost = /^[a-z0-9-]+\.supabase\.co$/.test(target.hostname);
+  if (!approvedHost || target.protocol !== "https:" || target.pathname !== `/storage/v1/object/upload/sign/site-videos/${signed.file}`
+    || !/^[a-f0-9-]{36}\.(mp4|webm|mov)$/.test(signed.file) || !target.searchParams.has("token")) throw new Error("Invalid video upload destination.");
+  try {
+    const uploaded = await fetch(target, {
+      method: "PUT", headers: { "content-type": type, "content-length": String(size) },
+      body: Readable.toWeb(fs.createReadStream(picked)), duplex: "half", signal: AbortSignal.timeout(30 * 60 * 1000),
+    });
+    if (!uploaded.ok) throw new Error(`Upload failed (${uploaded.status})`);
+    const row = await apiRequest({ path: "/api/admin/videos", method: "POST", body: { kind: "file", file: signed.file, title, category, description, published: true } });
+    picked = null;
+    return row;
+  } catch (error) {
+    const cleaned = await fetch(`${serverUrl}/api/admin/upload?file=${encodeURIComponent(signed.file)}`, {
+      method: "DELETE", headers: { "x-admin-key": key }, signal: AbortSignal.timeout(15000),
+    }).then(response => response.ok).catch(() => false);
+    if (!cleaned) throw new Error("Upload failed and Storage cleanup could not be confirmed. Contact the owner.");
+    throw error;
+  }
 });
 
 // ---- window ----

@@ -91,3 +91,12 @@ export const deleteSiteRecordForAdmin = (collection: SiteCollection, id: string)
 
 export const writeSitePageView = (view: SitePageView) =>
   call<void>("ingest", { action: "page_view", view });
+
+export const signSiteVideoUpload = (size: number, contentType: string) =>
+  call<{ file: string; uploadUrl: string }>("admin", { action: "video_upload_sign", size, contentType });
+
+export const cleanupSiteVideoUpload = (file: string) =>
+  call<void>("admin", { action: "video_upload_cleanup", file });
+
+export const signSiteVideoPlayback = (file: string) =>
+  call<{ url: string }>("ingest", { action: "video_playback_sign", file });
