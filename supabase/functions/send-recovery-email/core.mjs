@@ -21,6 +21,11 @@ export function emailConfiguration(environment) {
   return { ...config, origins, inviteTemplate, activationOrigins: activationConfigured ? activationOrigins : [], welcomeSecret: environment("WELCOME_EMAIL_SECRET") };
 }
 
+function hasAccountTemplate(config) {
+  return typeof config.inviteTemplate === "string" && config.inviteTemplate.length > 0 && config.inviteTemplate.length <= 4096
+    && config.inviteTemplate !== config.EMAILJS_TEMPLATE_ID;
+}
+
 export function accountTemplateParams(kind, toEmail, buttonUrl) {
   if (!["activation", "welcome"].includes(kind) || typeof toEmail !== "string" || typeof buttonUrl !== "string") throw new Error("Invalid email.");
   const activation = kind === "activation";
@@ -89,9 +94,9 @@ export async function sendRecoveryEmail(request, config, Webhook, deliver = fetc
     || typeof email?.token_hash !== "string" || !/^[a-f0-9]{40,128}$/.test(email.token_hash)) return fail(400);
   if (invite) {
     if (user.email_confirmed_at || user.app_metadata?.taxtrax_client_invitation !== "taxtrax-client-invite-v1") return fail(400);
-    if (config.inviteTemplate !== "template_p5rfdor" || !config.activationOrigins.length) return fail(503);
+    if (!hasAccountTemplate(config) || !config.activationOrigins.length) return fail(503);
     if (!config.activationOrigins.some(origin => email.redirect_to === `${origin}/api/auth/activation/callback`)) return fail(400);
-  } else if (config.EMAILJS_TEMPLATE_ID !== "template_2ov11np" || typeof user.email_confirmed_at !== "string" || !Number.isFinite(Date.parse(user.email_confirmed_at))
+  } else if (typeof user.email_confirmed_at !== "string" || !Number.isFinite(Date.parse(user.email_confirmed_at))
     || !config.origins.some(origin => email.redirect_to === `${origin}/api/auth/recovery/callback`)) return fail(400);
   const recovery = new URL(email.redirect_to);
   recovery.searchParams.set("token_hash", email.token_hash);
@@ -115,7 +120,7 @@ export async function sendWelcomeEmail(request, config, deliver = fetch) {
   if (request.method !== "POST") return fail(405);
   if (request.headers.get("x-taxtrax-email-action") !== "welcome") return fail(403);
   const secret = config.welcomeSecret;
-  if (!/^[A-Za-z0-9_-]{43,128}$/.test(secret ?? "") || config.inviteTemplate !== "template_p5rfdor" || !config.activationOrigins.length) return fail(503);
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(secret ?? "") || !hasAccountTemplate(config) || !config.activationOrigins.length) return fail(503);
   const supplied = request.headers.get("authorization")?.match(/^Bearer ([A-Za-z0-9_-]{43,128})$/)?.[1];
   if (!supplied || supplied.length !== secret.length) return fail(403);
   const encoder = new TextEncoder();

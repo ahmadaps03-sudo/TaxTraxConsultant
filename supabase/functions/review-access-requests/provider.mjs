@@ -1,5 +1,6 @@
 const devUrl = "https://dbcakdqthnamgjfkkxzn.supabase.co";
 const redirect = "http://localhost:3000/api/auth/activation/callback";
+const inviteErrorCodes = new Set(["email_exists", "user_already_exists", "over_email_send_rate_limit", "hook_timeout", "hook_payload_invalid", "hook_payload_over_size_limit", "unexpected_failure"]);
 
 export function devReviewProvider(url, key, transport = fetch) {
   const call = async (route, body) => {
@@ -24,7 +25,16 @@ export function devReviewProvider(url, key, transport = fetch) {
     async invite(email) {
       try {
         const result = await call(`/auth/v1/invite?redirect_to=${encodeURIComponent(redirect)}`, { email });
-        if (!result.ok) return { outcome: "failed" };
+        if (!result.ok) {
+          let errorCode = "unrecognized";
+          try {
+            const body = await result.json();
+            const candidate = body?.code ?? body?.error_code;
+            if (inviteErrorCodes.has(candidate)) errorCode = candidate;
+          } catch {}
+          try { console.warn(JSON.stringify({ event: "invite_failed", http_status: result.status, error_code: errorCode })); } catch {}
+          return { outcome: "failed" };
+        }
         const body = await result.json();
         return { outcome: "sent", userId: (body.user ?? body).id };
       } catch { return { outcome: "unknown" }; }

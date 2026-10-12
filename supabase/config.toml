@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.portal-admin]
 verify_jwt = false
+
+[functions.site-persistence]
+verify_jwt = false

@@ -11,8 +11,8 @@ import { welcomeEnvironment } from "./setup-welcome-email-dev.mjs";
 const origin = "http://localhost:3000";
 const hash = "b".repeat(64);
 const secret = randomBytes(32).toString("base64");
-const environment = { EMAILJS_SERVICE_ID: "synthetic-service", EMAILJS_TEMPLATE_ID: "template_2ov11np",
-  EMAILJS_INVITE_TEMPLATE_ID: "template_p5rfdor", EMAILJS_PUBLIC_KEY: "synthetic-public", EMAILJS_PRIVATE_KEY: "synthetic-private",
+const environment = { EMAILJS_SERVICE_ID: "synthetic-service", EMAILJS_TEMPLATE_ID: "template_synthetic_reset",
+  EMAILJS_INVITE_TEMPLATE_ID: "template_synthetic_account", EMAILJS_PUBLIC_KEY: "synthetic-public", EMAILJS_PRIVATE_KEY: "synthetic-private",
   SEND_EMAIL_HOOK_SECRET: `v1,whsec_${secret}`, RECOVERY_ALLOWED_ORIGINS: origin, ACTIVATION_ALLOWED_ORIGINS: origin,
   WELCOME_EMAIL_SECRET: "synthetic_welcome_secret_123456789012345678901234567890" };
 const config = emailConfiguration(name => environment[name]);
@@ -46,7 +46,7 @@ test("welcome uses the same exact template keys with truthful post-setup wording
     Authorization: `Bearer ${environment.WELCOME_EMAIL_SECRET}` }, body: JSON.stringify({ to_email: "invite@example.invalid" }) });
   const result = await sendWelcomeEmail(request, config, async (_url, options) => { sent = JSON.parse(options.body); return new Response("OK"); });
   assert.equal(result.status, 200);
-  assert.equal(sent.template_id, "template_p5rfdor");
+  assert.equal(sent.template_id, environment.EMAILJS_INVITE_TEMPLATE_ID);
   assert.deepEqual(Object.keys(sent.template_params).sort(), Object.keys(accountTemplateParams("activation", "invite@example.invalid", `${origin}/portal`)).sort());
   assert.equal(sent.template_params.button_url, `${origin}/portal`);
   assert.match(sent.template_params.message, /setup is complete/);
@@ -78,7 +78,8 @@ test("invites require signed, unconfirmed, owner-marked identities and exact red
 });
 
 test("missing/invalid invitation configuration does not break recovery delivery", async () => {
-  for (const changes of [{ EMAILJS_INVITE_TEMPLATE_ID: undefined }, { EMAILJS_INVITE_TEMPLATE_ID: environment.EMAILJS_TEMPLATE_ID },
+  for (const changes of [{ EMAILJS_INVITE_TEMPLATE_ID: undefined }, { EMAILJS_INVITE_TEMPLATE_ID: "" },
+    { EMAILJS_INVITE_TEMPLATE_ID: environment.EMAILJS_TEMPLATE_ID },
     { ACTIVATION_ALLOWED_ORIGINS: undefined }, { ACTIVATION_ALLOWED_ORIGINS: "not-an-origin" }]) {
     const configured = emailConfiguration(name => ({ ...environment, ...changes })[name]);
     assert.equal((await sendRecoveryEmail(hookRequest(), configured, Webhook, () => { throw new Error("Must not send invite"); })).status, 503);

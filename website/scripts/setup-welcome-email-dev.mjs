@@ -38,7 +38,7 @@ export async function setupWelcomeEmail() {
   const temporary = path.join(website, `.env.local.welcome.${randomBytes(8).toString("hex")}.tmp`);
   try {
     const secretsFile = path.join(directory, "secret.env");
-    await writeFile(secretsFile, `WELCOME_EMAIL_SECRET=${secret}\nEMAILJS_TEMPLATE_ID=template_2ov11np\nEMAILJS_INVITE_TEMPLATE_ID=template_p5rfdor\n`, { mode: 0o600 });
+    await writeFile(secretsFile, `WELCOME_EMAIL_SECRET=${secret}\n`, { mode: 0o600 });
     const cli = path.join(website, "node_modules", "supabase", "dist", "supabase.js");
     for (const args of [["secrets", "set", "--env-file", secretsFile], ["functions", "deploy", "send-recovery-email", "--no-verify-jwt", "--use-api"]]) {
       await run(process.execPath, [cli, ...args, "--project-ref", devRef, "--workdir", repository], { timeout: 120000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
@@ -56,7 +56,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     if (process.argv.length !== 2) throw new Error();
     await setupWelcomeEmail();
-    console.log("Dev EmailJS template IDs and scoped welcome delivery configured. Restart Next.js; no credentials printed.");
+    console.log("Dev scoped welcome delivery configured. Restart Next.js; no credentials printed.");
   } catch {
     console.error("Dev welcome setup failed. Check owner Dev access/link and private environment; raw credential-bearing output suppressed.");
     process.exitCode = 1;

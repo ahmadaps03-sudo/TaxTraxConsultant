@@ -112,6 +112,28 @@ test("provider adapter hard-pins Dev, normalizes safe errors and preserves activ
   assert.deepEqual(await provider.invite(row.email), { outcome: "sent", userId });
 });
 
+test("failed Auth invite logs only status and allowlisted code without changing outcome", async () => {
+  const privateValues = [row.email, secret, "synthetic-access-token", "synthetic-token-hash", "http://localhost:3000/api/auth/activation/callback"];
+  const logs = [];
+  const originalWarn = console.warn;
+  console.warn = (...parts) => logs.push(parts.join(" "));
+  try {
+    const provider = devReviewProvider("https://dbcakdqthnamgjfkkxzn.supabase.co", secret, async () => new Response(JSON.stringify({
+      code: "email_exists", message: privateValues.join(" "), access_token: privateValues[2], token_hash: privateValues[3],
+    }), { status: 422 }));
+    assert.deepEqual(await provider.invite(row.email), { outcome: "failed" });
+    assert.deepEqual(logs.map(JSON.parse), [{ event: "invite_failed", http_status: 422, error_code: "email_exists" }]);
+    assert.ok(privateValues.every(value => !logs.join(" ").includes(value)));
+
+    const untrusted = devReviewProvider("https://dbcakdqthnamgjfkkxzn.supabase.co", secret, async () => new Response(JSON.stringify({
+      code: privateValues[3], message: privateValues.join(" "),
+    }), { status: 503 }));
+    assert.deepEqual(await untrusted.invite(row.email), { outcome: "failed" });
+    assert.deepEqual(JSON.parse(logs[1]), { event: "invite_failed", http_status: 503, error_code: "unrecognized" });
+    assert.ok(privateValues.every(value => !logs.join(" ").includes(value)));
+  } finally { console.warn = originalWarn; }
+});
+
 test("owner setup preserves unrelated environment and refuses shared capabilities/remote targets", () => {
   const env = 'SUPABASE_URL=https://dbcakdqthnamgjfkkxzn.supabase.co\r\nACCESS_REQUEST_SUBMISSION_SECRET=synthetic-public-submission\r\nADMIN_API_KEY=synthetic-unrelated-key\r\n';
   const updated = adminReviewEnvironment(env, secret);

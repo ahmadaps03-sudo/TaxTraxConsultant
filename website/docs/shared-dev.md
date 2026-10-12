@@ -170,8 +170,8 @@ credentials belong to the Dev `send-recovery-email` Edge Function, not browser
 code or website authentication runtime. The empty additional names in
 `.env.example` are owner setup reminders; Ahmed does not need EmailJS keys.
 
-Reuse Ahmed's intended Dev EmailJS service and recovery template
-`template_2ov11np`. Set the
+Use Hélio's Dev EmailJS service and Password Reset template
+`template_ys2jlyd`. Set the
 template's **To Email** field to `{{to_email}}` and its reset-link target to
 `{{recovery_url}}`; putting the recipient only in the message body is not enough.
 The deployed service/template IDs must match those selected in EmailJS. Allow
@@ -304,18 +304,17 @@ against shared Dev as part of ordinary login/logout testing.
 
 ## First-time setup: owner invitation setup
 
-The activation implementation is complete for shared Dev. The invitation
-template ID is configured in Dev, but the Ahmed-owned EmailJS account/configuration
-is not currently accessible for verification. A Dev approval provisioned an
-active client while its invitation attempt failed and no email arrived. Real
-invitation and welcome inbox delivery remains deferred/unverified, not passed.
-Automated proof/setup tests do not prove delivery.
-Recovery keeps its existing template and behavior.
+The activation implementation is complete for shared Dev. Configure the
+invitation template ID in Dev using Hélio's EmailJS account. A previous Dev
+approval provisioned an active client while its invitation attempt failed and
+no email arrived. Real invitation and welcome inbox delivery still requires
+manual verification; automated proof/setup tests do not prove delivery.
+Recovery keeps its existing flow with the new template.
 
-Keep the existing `send-recovery-email` function name, hook URL, signing secret,
-EmailJS service and recovery template. Ahmed's separate Welcome + Account Creation
-template is `template_p5rfdor` and is reused for approval invitations and welcome
-after successful first-password setup. Its **To Email** = `{{to_email}}` and
+Keep the existing `send-recovery-email` function name, hook URL and signing
+secret. Hélio's Welcome + Account Creation template is `template_zvyfzfx` and
+is reused for approval invitations and welcome after successful first-password
+setup. Its **To Email** = `{{to_email}}` and
 button link = `{{button_url}}`. The exact account-template keys are `to_email`,
 `subject`, `preheader`, `badge_text`, `badge_bg`, `badge_border`, `badge_color`,
 `heading`, `message`, `button_label`, `button_url`, `button_note`, `step1_bg`,
@@ -335,9 +334,10 @@ WELCOME_EMAIL_SECRET
 ```
 
 Set the activation origin allowlist to `http://localhost:3000` and preserve all
-recovery settings. Owner setup from `website` pins Dev, configures the two
-public template IDs and a separate private `WELCOME_EMAIL_SECRET`, deploys only
-the existing email function and updates ignored `.env.local` without printing
+recovery settings. Set both template IDs as Dev Edge Function secrets before
+deployment. Owner setup from `website` pins Dev, configures a separate private
+`WELCOME_EMAIL_SECRET`, deploys only the existing email function and updates
+ignored `.env.local` without printing
 credentials:
 
 ```powershell
