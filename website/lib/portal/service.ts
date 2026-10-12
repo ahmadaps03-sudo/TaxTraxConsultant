@@ -168,44 +168,85 @@ const FILE_TYPES: Record<string, { mime: string; magic?: number[][]; text?: bool
   csv: { mime: "text/csv", text: true },
 };
 
-/** Storage calls use the client's own access token with a longer timeout than the shared auth fetch (25 MB uploads). */
-async function storage(db: Db, method: "POST" | "GET" | "DELETE", objectPath: string, init: { body?: Buffer; contentType?: string } = {}) {
+async function storage(db: Db, objectPath: string, range?: string) {
   const session = (await db.auth.getSession()).data.session;
   if (!session?.access_token) throw new PortalError(401, "Please log in again.");
   const { url, key } = getSupabaseConfiguration();
-  const route = method === "GET" ? "object/authenticated" : "object";
-  const target = `${url}/storage/v1/${route}/${BUCKET}/${objectPath.split("/").map(encodeURIComponent).join("/")}`;
-  return fetch(target, {
-    method, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(120_000),
-    headers: { apikey: key, Authorization: `Bearer ${session.access_token}`, ...(init.contentType ? { "Content-Type": init.contentType, "x-upsert": "false" } : {}) },
-    body: init.body ? new Uint8Array(init.body) : undefined,
+  return fetch(`${url}/storage/v1/object/authenticated/${BUCKET}/${objectPath.split("/").map(encodeURIComponent).join("/")}`, {
+    method: "GET", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000),
+    headers: { apikey: key, Authorization: `Bearer ${session.access_token}`, ...(range ? { Range: range } : {}) },
   });
 }
 
-export async function saveDocument(db: Db, c: Client, file: { name: string; bytes: Buffer }, tagInput: unknown, yearInput: unknown) {
+function documentDetails(name: unknown, size: unknown, tagInput: unknown, yearInput: unknown) {
   const tag = text(tagInput, 40);
   if (!(DOC_TAGS as readonly string[]).includes(tag)) throw new PortalError(400, "Choose what kind of document this is.");
   const year = int(yearInput);
   if (!validYear(year)) throw new PortalError(400, "Choose a valid tax year.");
-  const ext = path.extname(file.name).slice(1).toLowerCase();
+  if (typeof name !== "string" || name.length > 255) throw new PortalError(400, "Invalid file name.");
+  const ext = path.extname(name).slice(1).toLowerCase();
   const type = FILE_TYPES[ext];
   if (!type) throw new PortalError(415, "Only PDF, JPG, PNG, Excel (XLS/XLSX), Word (DOC/DOCX) or CSV files are allowed.");
-  if (!file.bytes.length) throw new PortalError(400, "That file is empty.");
-  if (file.bytes.length > MAX_FILE_BYTES) throw new PortalError(413, "That file is larger than 25 MB.");
-  const okMagic = type.text ? !file.bytes.subarray(0, 8192).includes(0) : type.magic!.some((m) => m.every((b, i) => file.bytes[i] === b));
-  if (!okMagic) throw new PortalError(415, `That file does not look like a real .${ext} file.`);
+  if (!Number.isSafeInteger(size) || (size as number) < 1) throw new PortalError(400, "That file is empty.");
+  if ((size as number) > MAX_FILE_BYTES) throw new PortalError(413, "That file is larger than 25 MB.");
+  const displayName = name.replace(/[\\/\u0000-\u001f\u007f"<>|:*?]/g, "_").replace(/^\.+/, "").slice(-120) || `document.${ext}`;
+  return { tag, year, ext, type, displayName, size: size as number };
+}
 
-  const displayName = file.name.replace(/[\\/\u0000-\u001f\u007f"<>|:*?]/g, "_").replace(/^\.+/, "").slice(-120) || `document.${ext}`;
-  const objectPath = `${c.id}/${randomUUID()}.${ext}`;
-  const uploaded = await storage(db, "POST", objectPath, { body: file.bytes, contentType: type.mime }).catch(() => null);
-  if (!uploaded || !uploaded.ok) {
-    console.error("[portal] storage_upload_failed", uploaded?.status ?? "network");
-    throw new PortalError(uploaded?.status === 401 || uploaded?.status === 403 ? 401 : 502, uploaded?.status === 401 || uploaded?.status === 403 ? "Please log in again." : "We couldn't store that file. Please try again.");
+const ownedUploadPath = (client: Client, value: unknown) => typeof value === "string"
+  && new RegExp(`^${client.id}/[0-9a-f-]{36}\\.(pdf|jpe?g|png|xlsx?|docx?|csv)$`).test(value);
+
+export async function beginDocumentUpload(db: Db, client: Client, input: Record<string, unknown>) {
+  const details = documentDetails(input.name, input.size, input.tag, input.taxYear);
+  if (Object.keys(input).sort().join(",") !== "name,size,tag,taxYear") throw new PortalError(400, "Invalid upload.");
+  const objectPath = `${client.id}/${randomUUID()}.${details.ext}`;
+  const signed = await db.storage.from(BUCKET).createSignedUploadUrl(objectPath, { upsert: false });
+  if (signed.error || !signed.data) throw new PortalError(502, "We couldn't prepare that upload. Please try again.");
+  const { url } = getSupabaseConfiguration();
+  const target = new URL(signed.data.signedUrl);
+  if (target.origin !== url || !target.searchParams.has("token") || target.pathname !== `/storage/v1/object/upload/sign/${BUCKET}/${objectPath}`) {
+    throw new PortalError(502, "We couldn't prepare that upload. Please try again.");
+  }
+  return { path: objectPath, uploadUrl: target.toString(), contentType: details.type.mime };
+}
+
+export async function cleanupDocumentUpload(db: Db, client: Client, objectPath: unknown) {
+  if (!ownedUploadPath(client, objectPath)) throw new PortalError(400, "Invalid upload.");
+  const removed = await db.storage.from(BUCKET).remove([objectPath as string]);
+  if (removed.error) throw new PortalError(502, "We couldn't clear that upload. Please try again.");
+}
+
+export async function completeDocumentUpload(db: Db, client: Client, input: Record<string, unknown>) {
+  if (Object.keys(input).sort().join(",") !== "name,path,size,tag,taxYear" || !ownedUploadPath(client, input.path)) throw new PortalError(400, "Invalid upload.");
+  const details = documentDetails(input.name, input.size, input.tag, input.taxYear);
+  const objectPath = input.path as string;
+  if (!objectPath.endsWith(`.${details.ext}`)) throw new PortalError(400, "Invalid upload.");
+  const bucket = db.storage.from(BUCKET);
+  const info = await bucket.info(objectPath);
+  if (info.error || !info.data || Number(info.data.size) !== details.size || info.data.contentType !== details.type.mime) {
+    await cleanupDocumentUpload(db, client, objectPath).catch(() => undefined);
+    throw new PortalError(400, "Uploaded file metadata does not match.");
+  }
+  const response = await storage(db, objectPath, "bytes=0-8191").catch(() => null);
+  if (!response?.ok || !response.body) throw new PortalError(502, "We couldn't verify that file. Please try again.");
+  const reader = response.body.getReader();
+  const head: number[] = [];
+  try {
+    while (head.length < 8192) {
+      const part = await reader.read();
+      if (part.done) break;
+      head.push(...part.value.subarray(0, 8192 - head.length));
+    }
+  } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
+  const valid = details.type.text ? !head.includes(0) : details.type.magic!.some(magic => magic.every((byte, index) => head[index] === byte));
+  if (!valid) {
+    await cleanupDocumentUpload(db, client, objectPath).catch(() => undefined);
+    throw new PortalError(415, `That file does not look like a real .${details.ext} file.`);
   }
   try {
-    return { id: await rpc<string>(db, "portal_add_document", { p_path: objectPath, p_name: displayName, p_mime: type.mime, p_size: file.bytes.length, p_tag: tag, p_year: year }) };
+    return { id: await rpc<string>(db, "portal_add_document", { p_path: objectPath, p_name: details.displayName, p_mime: details.type.mime, p_size: details.size, p_tag: details.tag, p_year: details.year }) };
   } catch (e) {
-    await storage(db, "DELETE", objectPath).catch(() => undefined); // don't leave an unregistered file behind
+    await cleanupDocumentUpload(db, client, objectPath).catch(() => undefined);
     throw e;
   }
 }
@@ -218,14 +259,18 @@ async function ownedDocument(db: Db, c: Client, id: string) {
 }
 export async function documentFile(db: Db, c: Client, id: string) {
   const row = await ownedDocument(db, c, id);
-  const res = await storage(db, "GET", row.storage_path).catch(() => null);
-  if (!res || !res.ok || !res.body) throw new PortalError(res?.status === 404 ? 404 : 502, "Document not found.");
-  return { stream: res.body, name: row.file_name, mime: row.mime, size: row.size_bytes };
+  const safeDownloadName = row.file_name.replace(/[^A-Za-z0-9._-]/g, "_");
+  const signed = await db.storage.from(BUCKET).createSignedUrl(row.storage_path, 60, { download: safeDownloadName });
+  if (signed.error || !signed.data?.signedUrl) throw new PortalError(502, "Document not found.");
+  const { url } = getSupabaseConfiguration();
+  const target = new URL(signed.data.signedUrl);
+  if (target.origin !== url || target.pathname !== `/storage/v1/object/sign/${BUCKET}/${row.storage_path}` || !target.searchParams.has("token")) throw new PortalError(502, "Document not found.");
+  return target.toString();
 }
 export async function deleteDocument(db: Db, id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new PortalError(404, "Document not found.");
   const storagePath = await rpc<string>(db, "portal_delete_document", { p_id: id }); // checks ownership + "not reviewed yet", deletes the row
-  await storage(db, "DELETE", storagePath).catch(() => undefined);
+  await db.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
 }
 
 /* ---------- checklist / e-signature / payments ---------- */

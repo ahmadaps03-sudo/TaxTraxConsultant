@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getUserByToken, tokenFromRequest, type SessionUser } from "./auth/session";
 import { clientIp } from "./network/client-ip";
 
 export const ok = (data?: unknown, init?: ResponseInit) => NextResponse.json({ ok: true, data }, init);
@@ -26,12 +25,4 @@ export async function readJson(req: Request, maxBytes = 50_000): Promise<Record<
     const v = JSON.parse(raw);
     return v && typeof v === "object" && !Array.isArray(v) ? v : null;
   } catch { return null; }
-}
-
-/** Authenticates an API request from its session cookie. Returns the user, or a ready-made 401 response. */
-export function requireUser(req: Request): { user: SessionUser; token: string } | { res: NextResponse } {
-  const token = tokenFromRequest(req);
-  const user = getUserByToken(token);
-  if (!user || !token) return { res: fail(401, "Please log in to continue.") };
-  return { user, token };
 }

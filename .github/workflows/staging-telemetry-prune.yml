@@ -1,0 +1,24 @@
+name: Staging telemetry retention
+
+on:
+  schedule:
+    - cron: '12 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  prune:
+    if: vars.STAGING_TELEMETRY_PRUNE_ENABLED == '1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Prune staging telemetry
+        run: node website/scripts/site-prune-telemetry-staging.mjs
+        env:
+          STAGING_TELEMETRY_PRUNE_ENABLED: ${{ vars.STAGING_TELEMETRY_PRUNE_ENABLED }}
+          STAGING_SUPABASE_REF: ${{ vars.STAGING_SUPABASE_REF }}
+          STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_PUBLISHABLE_KEY: ${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+          STAGING_SITE_ADMIN_DATA_SECRET: ${{ secrets.STAGING_SITE_ADMIN_DATA_SECRET }}

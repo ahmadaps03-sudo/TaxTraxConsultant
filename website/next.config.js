@@ -10,7 +10,6 @@ const securityHeaders = [
 const nextConfig = {
   poweredByHeader: false,
   compress: true,
-  experimental: { serverComponentsExternalPackages: ["better-sqlite3"] },
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],

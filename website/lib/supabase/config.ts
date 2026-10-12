@@ -16,7 +16,8 @@ export function getSupabaseConfiguration(environment = process.env) {
     throw new SupabaseConfigurationError();
   }
   const localHttp = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  if ((!localHttp && url.protocol !== "https:") || url.username || url.password || url.pathname !== "/" || url.search || url.hash || !key || !/^sb_publishable_[A-Za-z0-9_-]+$/.test(key)) {
+  const hosted = url.protocol === "https:" && /^[a-z0-9-]+\.supabase\.co$/.test(url.hostname);
+  if ((!localHttp && !hosted) || url.username || url.password || url.pathname !== "/" || url.search || url.hash || !key || !/^sb_publishable_[A-Za-z0-9_-]+$/.test(key)) {
     throw new SupabaseConfigurationError();
   }
   const cookieIdentifier = url.hostname.split(".")[0].replace(/[^A-Za-z0-9_-]/g, "_");

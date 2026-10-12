@@ -29,7 +29,7 @@ export async function requestPortalAccess(request: Request) {
     if (!input.honeypot) {
       const configuration = getSupabaseConfiguration();
       const secret = process.env.ACCESS_REQUEST_SUBMISSION_SECRET;
-      if (configuration.url !== "https://dbcakdqthnamgjfkkxzn.supabase.co" || !/^[A-Za-z0-9_-]{43,128}$/.test(secret ?? "")) throw new Error();
+      if (!/^[A-Za-z0-9_-]{43,128}$/.test(secret ?? "")) throw new Error();
       const result = await fetch(`${configuration.url}/functions/v1/submit-access-request`, {
         method: "POST", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10000),
         headers: { "Content-Type": "application/json", apikey: configuration.key, Authorization: `Bearer ${secret}` },

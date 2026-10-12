@@ -81,7 +81,7 @@ async function reviewRequest(request: Request, accounts: boolean) {
     } else throw new RequestError(405, "Method not allowed.");
     const configuration = getSupabaseConfiguration();
     const secret = process.env.ADMIN_ACCESS_REQUEST_SECRET;
-    if (configuration.url !== "https://dbcakdqthnamgjfkkxzn.supabase.co" || !/^[A-Za-z0-9_-]{43,128}$/.test(secret ?? "")
+    if (!/^[A-Za-z0-9_-]{43,128}$/.test(secret ?? "")
       || secret === process.env.ACCESS_REQUEST_SUBMISSION_SECRET) throw new Error();
     const result = await fetch(`${configuration.url}/functions/v1/review-access-requests`, {
       method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(45000),

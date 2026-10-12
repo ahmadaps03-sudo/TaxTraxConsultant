@@ -17,7 +17,6 @@ async function edge(action: string, payload: Record<string, unknown> = {}): Prom
     throw new AdminError(503, "Client portal admin is not configured (ADMIN_PORTAL_SECRET).");
   }
   const { url, key } = getSupabaseConfiguration();
-  if (url !== "https://dbcakdqthnamgjfkkxzn.supabase.co") throw new AdminError(503, "Client portal admin unavailable.");
   let response: Response;
   try {
     response = await fetch(`${url}/functions/v1/portal-admin`, {

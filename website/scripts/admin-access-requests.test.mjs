@@ -99,15 +99,15 @@ test("Edge requires a separate capability, exact bounded JSON and never exposes 
   assert.equal(result.headers.get("access-control-allow-origin"), null);
 });
 
-test("provider adapter hard-pins Dev, normalizes safe errors and preserves activation redirect", async () => {
+test("provider adapter validates target, normalizes safe errors and preserves activation redirect", async () => {
   let calls = 0;
   const transport = async (url, options) => {
     calls++; assert.ok(url.startsWith("https://dbcakdqthnamgjfkkxzn.supabase.co/")); assert.equal(options.redirect, "error");
     if (url.includes("/invite?")) { assert.equal(new URL(url).searchParams.get("redirect_to"), "http://localhost:3000/api/auth/activation/callback"); return new Response(JSON.stringify({ id: userId })); }
     return new Response(secret, { status: 503 });
   };
-  await assert.rejects(devReviewProvider("https://other-project.supabase.co", secret, transport).rpc("list")); assert.equal(calls, 0);
-  const provider = devReviewProvider("https://dbcakdqthnamgjfkkxzn.supabase.co", secret, transport);
+  await assert.rejects(devReviewProvider("https://unapproved.example.invalid", secret, transport).rpc("list")); assert.equal(calls, 0);
+  const provider = devReviewProvider("https://dbcakdqthnamgjfkkxzn.supabase.co", secret, transport, origin);
   await assert.rejects(provider.createUser({}), error => !error.message.includes(secret));
   assert.deepEqual(await provider.invite(row.email), { outcome: "sent", userId });
 });
@@ -120,14 +120,14 @@ test("failed Auth invite logs only status and allowlisted code without changing 
   try {
     const provider = devReviewProvider("https://dbcakdqthnamgjfkkxzn.supabase.co", secret, async () => new Response(JSON.stringify({
       code: "email_exists", message: privateValues.join(" "), access_token: privateValues[2], token_hash: privateValues[3],
-    }), { status: 422 }));
+    }), { status: 422 }), origin);
     assert.deepEqual(await provider.invite(row.email), { outcome: "failed" });
     assert.deepEqual(logs.map(JSON.parse), [{ event: "invite_failed", http_status: 422, error_code: "email_exists" }]);
     assert.ok(privateValues.every(value => !logs.join(" ").includes(value)));
 
     const untrusted = devReviewProvider("https://dbcakdqthnamgjfkkxzn.supabase.co", secret, async () => new Response(JSON.stringify({
       code: privateValues[3], message: privateValues.join(" "),
-    }), { status: 503 }));
+    }), { status: 503 }), origin);
     assert.deepEqual(await untrusted.invite(row.email), { outcome: "failed" });
     assert.deepEqual(JSON.parse(logs[1]), { event: "invite_failed", http_status: 503, error_code: "unrecognized" });
     assert.ok(privateValues.every(value => !logs.join(" ").includes(value)));

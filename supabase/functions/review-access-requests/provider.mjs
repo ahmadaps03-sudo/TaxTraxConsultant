@@ -1,11 +1,9 @@
-const devUrl = "https://dbcakdqthnamgjfkkxzn.supabase.co";
-const redirect = "http://localhost:3000/api/auth/activation/callback";
 const inviteErrorCodes = new Set(["email_exists", "user_already_exists", "over_email_send_rate_limit", "hook_timeout", "hook_payload_invalid", "hook_payload_over_size_limit", "unexpected_failure"]);
 
-export function devReviewProvider(url, key, transport = fetch) {
+export function devReviewProvider(url, key, transport = fetch, origin = globalThis.Deno?.env.get("AUTH_ORIGIN") || globalThis.Deno?.env.get("ACTIVATION_ALLOWED_ORIGINS")) {
   const call = async (route, body) => {
-    if (url !== devUrl || !key) throw new Error("Development review unavailable.");
-    return transport(`${devUrl}${route}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(8000),
+    if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url ?? "") || !key) throw new Error("Review unavailable.");
+    return transport(`${url}${route}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(8000),
       headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
   };
   return {
@@ -24,6 +22,8 @@ export function devReviewProvider(url, key, transport = fetch) {
     },
     async invite(email) {
       try {
+        if (!origin || new URL(origin).origin !== origin || !origin.startsWith("https://") && !/^http:\/\/localhost(?::\d+)?$/.test(origin)) throw new Error("Invitation origin unavailable.");
+        const redirect = `${origin}/api/auth/activation/callback`;
         const result = await call(`/auth/v1/invite?redirect_to=${encodeURIComponent(redirect)}`, { email });
         if (!result.ok) {
           let errorCode = "unrecognized";

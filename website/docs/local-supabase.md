@@ -12,13 +12,12 @@ or financial data in this development portal.
 
 At checkpoints 1–2, contact, bookings, leads, analytics, content, admin CRUD and
 local media still used SQLite/filesystem. Site collections were subsequently
-cut over to Supabase; analytics, rate limits, legacy data and media remain local.
+cut over to Supabase; legacy data remains local only as a backup.
 Nothing here is production configuration or a deployment/compliance certification.
 
 ## Prerequisites and compatible pins
 
-- Use the existing `website/.nvmrc`: **Node 20.18.0**, with its bundled npm 10.8.2.
-  The existing package engine range remains `>=18.18.0 <21.0.0`; it is not changed.
+- Use `website/.nvmrc`: **Node 22.19.0**. The package engine range is Node 22.
 - Install and start a Docker-compatible runtime with access to its Docker API.
   Docker Desktop, Docker Engine, or a compatible alternative can be used. The
   scripts require a bridge network with loopback host binding; they fail rather
@@ -32,16 +31,15 @@ Pinned packages:
 
 | Package | Version | Reason |
 | --- | --- | --- |
-| `@supabase/supabase-js` | `2.78.0` | Supports the existing Node 18/20 range; later releases require newer Node. |
+| `@supabase/supabase-js` | `2.78.0` | Pinned client release, verified with Node 22. |
 | `@supabase/ssr` | `0.8.0` | Compatible `supabase-js` peer (`^2.76.1`); used by checkpoint-4 server session integration. |
 | `server-only` | `0.0.1` | Guards the server session and authorization modules against browser imports. |
-| `supabase` | `2.120.0` | Pinned project-local CLI with a Node launcher, verified using the existing Node 20 runtime. |
+| `supabase` | `2.120.0` | Pinned project-local CLI, verified with Node 22. |
 | CLI-only `tar` override | `7.5.22` | Retained legacy archive override; the current CLI Node launcher no longer depends on `tar`. |
 
 No test framework dependency is needed here: helper tests use Node's built-in
 test runner. The lockfile pins transitive dependencies as well. These are
-compatibility pins, not a claim that old Node/Next versions are suitable for a
-future production deployment; that assessment remains separate work. Do not run
+compatibility pins, not a claim of production readiness. Do not run
 `npm audit fix --force` or automatically change runtime versions.
 
 ## Fresh clone
@@ -59,8 +57,8 @@ npm run supabase:env
 npm run dev
 ```
 
-If using nvm, `nvm install` / `nvm use` inside `website` select the existing
-`.nvmrc`, not a new runtime policy. No global Supabase installation or Supabase
+If using nvm, `nvm install` / `nvm use` inside `website` select `.nvmrc`.
+No global Supabase installation or Supabase
 account/login/link is required. Do not run `supabase init`: the configuration is
 already committed at the repository root, and every script selects that root
 independently of your shell's working directory.
@@ -182,8 +180,8 @@ For Docker access errors, confirm your Docker-compatible runtime is running and
 your user can execute `docker info`. Do not automatically change socket
 permissions. If the stack fails, inspect its local containers and image-download
 errors; avoid sharing credential-bearing diagnostic output. Configuration
-changes take effect after a stop/start. The website's unrelated SQLite features
-do not require the Supabase stack to be running.
+changes take effect after a stop/start. Legacy local database files are not
+opened by the website runtime.
 
 References: [Supabase local development](https://supabase.com/docs/guides/local-development),
 [CLI configuration](https://supabase.com/docs/guides/local-development/cli/config).

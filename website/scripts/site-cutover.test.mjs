@@ -37,7 +37,7 @@ test("public submissions use ingest, keep response shapes and fail closed on out
   } };
   const validation = await load("lib/validation.ts");
   const api = await load("lib/api.ts");
-  const http = await load("lib/http.ts", { "./auth/session": { getUserByToken: () => null, tokenFromRequest: () => null }, "./network/client-ip": { clientIp: () => "unknown" } });
+  const http = await load("lib/http.ts", { "./network/client-ip": { clientIp: () => "unknown" } });
   const contact = await load("app/api/contact/route.ts", { "@/lib/site-persistence/client": site, "@/lib/validation": validation, "@/lib/http": http });
   const bookings = await load("app/api/bookings/route.ts", { "@/lib/site-persistence/client": site, "@/lib/validation": validation, "@/lib/http": http });
   const leads = await load("app/api/leads/route.ts", { "@/lib/site-persistence/client": site, "@/lib/api": api, "@/lib/http": http });

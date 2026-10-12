@@ -58,9 +58,9 @@ test("staff Edge rejects missing or wrong bearer secret without invoking provide
   assert.equal(calls, 0);
 });
 
-test("staff provider refuses other Supabase projects before using its privileged key", async () => {
+test("staff provider refuses non-Supabase targets before using its privileged key", async () => {
   let called = false;
-  const provider = portalProvider("https://other-project.supabase.co", "synthetic-secret", async () => { called = true; throw new Error(); });
+  const provider = portalProvider("https://unapproved.example.invalid", "synthetic-secret", async () => { called = true; throw new Error(); });
   await assert.rejects(provider.rpc("snapshot", {}));
   assert.equal(called, false);
 });

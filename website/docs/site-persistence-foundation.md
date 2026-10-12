@@ -93,21 +93,20 @@ rollout.
 The local SQLite records were intentionally **not** imported to shared Dev, so
 those records no longer appear in the shared Dev website/Admin views. Keep the
 local database as a rollback/reference source; do not delete it. Media files,
-page-view storage, rate limits and the legacy Admin client count still depend
-on local SQLite infrastructure and are outside this cutover. This is
-not yet a Vercel-ready or Production deployment.
+page views, rate limits and the Admin client count now use Supabase. This is
+not a Production deployment.
 
 `npm run test:site-cutover` checks route contracts and portal booking isolation
 without writing to shared Dev.
 
-## Slice 4 analytics and distributed limits (pending Dev rollout)
+## Slice 4 analytics and distributed limits (deployed in Dev)
 
 The Slice 4 code writes page views through the existing ingest-scoped Edge
 capability and reads aggregate-only results through the admin-scoped
 `site_analytics_aggregate` RPC. The forward-only migration
-`20261015000100_site_analytics_aggregate.sql` is **not yet applied in Dev**.
-The revised `site-persistence` Edge Function must be deployed with the existing
-scoped secrets. Admin summary now counts active `client_profiles`, not legacy
+`20261015000100_site_analytics_aggregate.sql` and the revised
+`site-persistence` Edge Function are deployed in Dev with the existing scoped
+secrets. Admin summary now counts active `client_profiles`, not legacy
 SQLite users. Existing chart/API response shapes remain unchanged; the 18
 local demo/history views are not imported.
 

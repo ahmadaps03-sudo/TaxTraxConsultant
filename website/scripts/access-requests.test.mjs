@@ -202,12 +202,12 @@ test("honeypot success creates no record and duplicate acknowledgments reveal no
   assert.equal(first.status, duplicate.status); assert.equal(await first.text(), await duplicate.text());
 });
 
-test("missing/wrong-target configuration and provider failures never fall back to SQLite", async () => {
+test("missing/invalid-target configuration and provider failures never fall back to SQLite", async () => {
   calls = [];
   delete process.env.ACCESS_REQUEST_SUBMISSION_SECRET;
   assert.equal((await handler(request())).status, 503); assert.equal(calls.length, 0);
   process.env.ACCESS_REQUEST_SUBMISSION_SECRET = secret;
-  process.env.SUPABASE_URL = "https://another-project.supabase.co";
+  process.env.SUPABASE_URL = "http://unapproved.example.invalid";
   assert.equal((await handler(request())).status, 503); assert.equal(calls.length, 0);
   process.env.SUPABASE_URL = "https://dbcakdqthnamgjfkkxzn.supabase.co";
   const successfulFetch = globalThis.fetch;

@@ -5,14 +5,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Ctx = { params: { id: string } };
 
-/** Download the client's OWN document (streamed from private Storage, always as an attachment). */
+/** Redirect the authorized client to a short-lived private Storage attachment URL. */
 export const GET = (request: Request, { params }: Ctx) => withClient(request, false, async (ctx) => {
-  const f = await documentFile(ctx.db, ctx.user, params.id);
-  const ascii = f.name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  return ctx.binary(new Response(f.stream, { headers: {
-    "Content-Type": f.mime, "Content-Length": String(f.size), "X-Content-Type-Options": "nosniff",
-    "Content-Disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(f.name)}`,
-  } }));
+  const location = await documentFile(ctx.db, ctx.user, params.id);
+  return ctx.binary(new Response(null, { status: 303, headers: { Location: location, "Referrer-Policy": "no-referrer" } }));
 });
 
 export const DELETE = (request: Request, { params }: Ctx) => withClient(request, true, async (ctx) => { await deleteDocument(ctx.db, params.id); return ctx.json({}); });

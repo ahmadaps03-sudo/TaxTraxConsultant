@@ -17,20 +17,19 @@ website, and the desktop app reads them through `/api/admin/*`, protected by a s
 - Merge `dev` into `main` only when the integrated application is tested, stable and approved.
 
 ## Requirements
-- Node.js 18.18 to 20.x for the website (see `website/.nvmrc`); Node 18+ for the admin app.
+- Node.js 22.19.0 for the website (see `website/.nvmrc`); Node 18+ for the admin app.
 - Keep the folder OUT of OneDrive/Dropbox-synced locations (e.g. use `C:\dev\taxtrax`).
 
 ## Client Portal on shared Development (no Docker)
 Follow [website/docs/shared-dev.md](website/docs/shared-dev.md) for Windows setup,
 the unprivileged Dev environment values and the privately shared synthetic login.
-Site collections use shared Supabase Dev; analytics, rate limits and media remain
-local for now. Production is not a test target.
+Site collections, analytics, rate limits and media use shared Supabase Dev.
+Production is not a test target.
 
 ## What changed in this version (read first)
-- **Persistence:** site collections (messages, bookings, leads, posts and video metadata)
-  use Supabase Dev. SQLite (`website/data/taxtrax.db`) remains for analytics,
-  rate limits and legacy data; media files remain local. Local SQLite records
-  were not imported to shared Dev.
+- **Persistence:** website runtime uses Supabase for site records, analytics,
+  rate limits and media. Local legacy SQLite files are retained as backups only;
+  they were not imported to shared Dev.
 - The site's contact details (WhatsApp, address, phone, email, hours) live in `website/lib/contact.ts`,
   and all prices in `website/lib/pricing.ts`. Edit those two files and the whole site updates.
 - Tax calculators open as pop-ups; their rates live in `website/lib/tax-calc.ts`.
@@ -39,8 +38,7 @@ local for now. Production is not a test target.
 - The admin **Dashboard** shows visitors by country, traffic, bookings by service and enquiries. Visits are recorded
   automatically (no IP addresses stored). Country comes from your host/CDN headers or the bundled GeoIP database
   (`geoip-lite`, installed by `npm install`). On `localhost` every visit shows as "Unknown".
-- To see the charts filled in right now: `cd website && node scripts/seed-demo-analytics.mjs`
-  (remove with `--clear`).
+- Dashboard charts use Supabase page views; the old local demo-seed command was removed.
 - `npm run dev` compiles each page the first time you open it, so it always feels slow. For real-world speed use
   `npm run build` then `npm start` in `website/`.
 
@@ -97,20 +95,18 @@ Build on the OS you're targeting. Add `build.win.icon` / `build.mac.icon` in `ad
 once you have a square 512x512 icon. The installer is unsigned, so Windows SmartScreen / macOS
 Gatekeeper will warn until you buy a code-signing certificate.
 
-## Step 5: Go live
-1. Deploy `website/` to a server with a WRITABLE disk (a VPS, Render disk, Railway volume, etc.)
-   and set `ADMIN_API_KEY`, `NEXT_PUBLIC_SITE_URL` (and optionally `DATA_FILE` on a persistent
-   volume) as environment variables. Use HTTPS.
-2. Vercel/Netlify are read-only: replace `website/lib/store.ts` with a database (Postgres +
-   Prisma; a `prisma/schema.prisma` starter is already in the project) first.
-3. In the desktop app connect to `https://your-domain.com` with the production key.
-4. Back up the `data/db.json` file (or your database) regularly.
+## Step 5: Staging preparation
+The website now uses Supabase rather than a writable local disk. Before a
+Vercel staging deployment, configure the staging Supabase project, apply
+migrations/Edge Functions, set the scoped server environment values, and run
+the synthetic QA in `website/docs/TESTING.md`. No deployment is part of this
+repository cleanup. Keep legacy local database files as private backups.
 
 ## Security notes
 - The admin key is a single shared secret: anyone holding it has full admin access. Rotate it
   by changing `ADMIN_API_KEY` and reconnecting. Per-staff logins and roles need a real user
   table (next step).
 - The key is stored encrypted with the OS keychain (Electron safeStorage); the UI never sees it.
-- Public form endpoints validate input and are rate-limited per IP (in memory, per instance).
+- Public form endpoints validate input and use the shared Postgres rate limiter.
 - `/api/admin/*` refuses to work until `ADMIN_API_KEY` (16+ chars) is set.
 - The old `/admin` page was removed from the website, so the admin UI is no longer public.

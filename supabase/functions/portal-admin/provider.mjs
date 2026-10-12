@@ -1,8 +1,6 @@
-// Calls shared Supabase Dev with the service-role key, from inside the Edge Function only.
-const devUrl = "https://dbcakdqthnamgjfkkxzn.supabase.co";
 export function portalProvider(url, key, transport = fetch) {
   const call = (route, body) => {
-    if (url !== devUrl || !key) throw new Error("Client portal admin unavailable.");
+    if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url ?? "") || !key) throw new Error("Client portal admin unavailable.");
     return transport(`${url}${route}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(8000),
       headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
   };

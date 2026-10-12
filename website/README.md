@@ -3,8 +3,8 @@
 ## Shared Dev without Docker
 
 For normal Client Portal testing on `dev`, follow
-[shared Development setup](docs/shared-dev.md): install with the existing Node
-20 runtime, configure the unprivileged Dev URL/key and local `AUTH_ORIGIN`, then
+[shared Development setup](docs/shared-dev.md): install with Node 22.19.0,
+configure the unprivileged Dev URL/key and local `AUTH_ORIGIN`, then
 run `npm run dev`. Obtain the synthetic login privately from Helio. No Docker,
 remote migration or admin credential is needed. Password recovery uses the signed
 Dev EmailJS hook; see the setup guide and `docs/TESTING.md` for manual QA.
@@ -22,10 +22,9 @@ including portal-only refresh middleware and a server authorization helper.
 Checkpoint 5 adds [backend login/logout handlers](docs/auth-handlers.md).
 Checkpoint 6 connects the existing portal UI to the server authentication boundary;
 see [portal integration and browser tests](docs/portal-auth-integration.md).
-Login/logout is functional for synthetic local accounts. Other dashboard data
-and controls remain mock/unimplemented; do not introduce sensitive client data.
-Site collections now use Supabase Dev; analytics, rate limits and media remain
-local. The older backend-phase
+Login/logout is functional for synthetic local accounts. Portal data features
+also use Supabase; do not introduce sensitive client test data. Site collections,
+analytics, rate limits and media use Supabase. The older backend-phase
 suggestions later in this README are historical, not the current architecture decision.
 
 Full frontend for TaxTrax Consulting, built to the attached `Website_Format.pdf` spec, in your
@@ -38,10 +37,8 @@ for setup. Other content still lives in `lib/data.ts`.
 This is almost always caused by the project folder living inside a OneDrive-synced directory
 (Desktop/Documents/Downloads are backed up by OneDrive on most default Windows 11 setups), which
 corrupts the native `.node` binary Next.js needs mid-write. Fix: copy the project to a plain local
-path like `C:\dev\tax-website` (not under OneDrive), delete `node_modules` + `package-lock.json`,
-run `npm cache clean --force`, then `npm install` again. A `.nvmrc` and an `engines` field are
-included pinning Node to `18.18–20.x`, since that's the range Next.js 14 is actually built and
-tested against — newer Node majors aren't guaranteed to have prebuilt native binaries yet.
+path like `C:\dev\tax-website` (not under OneDrive), then run `npm ci` again.
+Do not delete the committed lockfile. The website pins Node 22.19.0 in `.nvmrc`.
 
 **Do not run `npm audit fix --force`.** It will silently jump Next.js to a new major version (14 →
 16 has happened during this build) which changes how dynamic route params work, among other

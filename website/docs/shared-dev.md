@@ -2,9 +2,8 @@
 
 Use only TaxTrax DEVELOPMENT (`dbcakdqthnamgjfkkxzn`). Production is not a test
 target. Existing authentication, profile RLS and provider-session checks are
-unchanged. Site collections and video Storage use Supabase Dev. The Slice 4
-analytics/distributed-limiter cutover is pending its Dev migration and Edge
-deployment; until then, do not test its new route behavior. Password
+unchanged. Site collections, video Storage, analytics and distributed limits
+use Supabase Dev. Password
 recovery and invite-only first-time setup use Supabase Auth and a signed EmailJS
 hook. MFA, backend Remember-me persistence and other portal functions remain deferred; this is
 not a production deployment or compliance certification.
@@ -19,7 +18,7 @@ manual QA, use the canonical [backend testing guide](TESTING.md).
 
 ## Ahmed: Windows PowerShell
 
-Use the existing Node **20.18.0** runtime (not Node 22/26). From the repository root:
+Use Node **22.19.0** (`website/.nvmrc`). From the repository root:
 
 ```powershell
 git checkout dev

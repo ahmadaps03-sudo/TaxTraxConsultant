@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=18.18.0 <21.0.0"
+    "node": ">=22.0.0 <23.0.0"
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -38,6 +38,8 @@
     "test:auth-handlers": "node --test scripts/auth-handlers.test.mjs",
     "test:portal": "node --test scripts/portal-integration.test.mjs",
     "test:client-portal": "node --test scripts/client-portal.test.mjs",
+    "test:portal-documents": "node --test scripts/portal-document-transfer.test.mjs",
+    "test:staging-prune": "node --test scripts/site-prune-telemetry-staging.test.mjs",
     "test:site-persistence": "node --test scripts/site-persistence.test.mjs",
     "test:site-persistence:db": "node --test scripts/site-persistence-db.test.mjs",
     "test:site-cutover": "node --test scripts/site-cutover.test.mjs"
@@ -45,7 +47,6 @@
   "dependencies": {
     "@supabase/ssr": "0.8.0",
     "@supabase/supabase-js": "2.78.0",
-    "better-sqlite3": "^11.5.0",
     "geoip-lite": "^1.4.10",
     "next": "14.2.35",
     "react": "18.3.1",

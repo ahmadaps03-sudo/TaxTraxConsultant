@@ -211,9 +211,21 @@ function UploadForm({ data, reload, compact = false }: { data: Overview; reload:
     const failed: string[] = []; let done = 0;
     for (const file of list) {
       if (file.size > data.options.maxFileBytes) { failed.push(`${file.name}: larger than 25 MB`); continue; }
-      const form = new FormData();
-      form.set("file", file); form.set("tag", tag); form.set("taxYear", String(year));
-      try { await api("POST", "/api/client/documents", form); done++; } catch (e) { failed.push(`${file.name}: ${errText(e)}`); }
+      let upload: { path: string; uploadUrl: string; contentType: string } | undefined;
+      try {
+        upload = await api<{ path: string; uploadUrl: string; contentType: string }>("POST", "/api/client/documents", { name: file.name, size: file.size, tag, taxYear: year });
+        const form = new FormData();
+        form.append("cacheControl", "3600");
+        // Label the part with the server's expected type; browsers report CSV/Office types inconsistently.
+        form.append("", new Blob([file], { type: upload.contentType }), file.name);
+        const stored = await fetch(upload.uploadUrl, { method: "PUT", body: form, cache: "no-store", referrerPolicy: "no-referrer", headers: { "x-upsert": "false" } });
+        if (!stored.ok) throw new Error("We couldn't store that file. Please try again.");
+        await api("POST", "/api/client/documents/complete", { path: upload.path, name: file.name, size: file.size, tag, taxYear: year });
+        done++;
+      } catch (e) {
+        if (upload) await api("DELETE", "/api/client/documents/upload", { path: upload.path }).catch(() => undefined);
+        failed.push(`${file.name}: ${errText(e)}`);
+      }
     }
     if (pick.current) pick.current.value = "";
     setBusy(false);

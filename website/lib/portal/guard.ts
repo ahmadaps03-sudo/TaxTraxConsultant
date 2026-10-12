@@ -16,7 +16,7 @@ import { portalMutationBoundary } from "./origin";
  *  - Data access uses ctx.db: the client's OWN Supabase session, so Postgres RLS applies. No service-role key anywhere.
  *  - If Supabase had to refresh the session while checking it, the new cookies are written onto the response.
  */
-export type ClientContext = { user: ClientIdentity; db: Db; ip: string; ua: string; json: (data: unknown, status?: number) => NextResponse; fail: (status: number, error: string, fields?: Record<string, string>) => NextResponse; binary: (res: Response) => Response };
+export type ClientContext = { user: ClientIdentity; db: Db; json: (data: unknown, status?: number) => NextResponse; fail: (status: number, error: string, fields?: Record<string, string>) => NextResponse; binary: (res: Response) => Response };
 
 export async function withClient(request: Request, mutating: boolean, handler: (ctx: ClientContext) => Promise<Response> | Response): Promise<Response> {
   let requestClient: ReturnType<typeof createRequestSupabaseClient> | undefined;
@@ -37,11 +37,8 @@ export async function withClient(request: Request, mutating: boolean, handler: (
     const auth = await authorizePortalClient(requestClient);
     if (auth.status === "ineligible") return fail(401, "Please log in to continue.");
     if (auth.status === "unavailable") return fail(503, "The portal is temporarily unavailable. Please reload and try again.");
-    const xff = process.env.TRUST_PROXY === "1" ? request.headers.get("x-forwarded-for")?.split(",")[0].trim() : undefined;
     const ctx: ClientContext = {
       user: auth.user, db: requestClient.client,
-      ip: xff || request.headers.get("x-real-ip") || "unknown",
-      ua: request.headers.get("user-agent") ?? "",
       json: (data, status = 200) => finish(NextResponse.json({ ok: true, data }, { status })) as NextResponse,
       fail,
       binary: (res) => finish(res),
