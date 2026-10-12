@@ -25,15 +25,21 @@ test("local disposable Postgres enforces site grants, RLS, validation and atomic
     sql("create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls; create schema private;");
     const migration = await readFile(new URL("../../supabase/migrations/20261013000100_site_persistence_foundation.sql", import.meta.url), "utf8");
     sql(migration);
+    const publication = await readFile(new URL("../../supabase/migrations/20261013000200_site_explicit_publication.sql", import.meta.url), "utf8");
+    sql(publication);
 
     sql(`insert into public.site_records(id,collection,data,created_at) values
       ('seed-post','posts','{"slug":"synthetic","published":true}'::jsonb,'2026-10-12T12:00:00Z'),
       ('draft-post','posts','{"slug":"synthetic-draft","published":false}'::jsonb,'2026-10-12T12:00:00Z'),
+      ('missing-post','posts','{"slug":"synthetic-missing"}'::jsonb,'2026-10-12T12:00:00Z'),
+      ('seed-video','videos','{"published":true}'::jsonb,'2026-10-12T12:00:00Z'),
+      ('draft-video','videos','{"published":false}'::jsonb,'2026-10-12T12:00:00Z'),
+      ('missing-video','videos','{}'::jsonb,'2026-10-12T12:00:00Z'),
       ('private-message','messages','{"name":"Synthetic"}'::jsonb,'2026-10-12T12:00:00Z'),
       ('private-booking','bookings','{"email":"synthetic@example.invalid"}'::jsonb,'2026-10-12T12:00:00Z'),
       ('private-lead','leads','{"email":"synthetic@example.invalid"}'::jsonb,'2026-10-12T12:00:00Z');`);
-    assert.equal(sql("set role anon; select string_agg(id,',') from public.site_records; reset role;"), "seed-post");
-    assert.equal(sql("set role authenticated; select string_agg(id,',') from public.site_records; reset role;"), "seed-post");
+    assert.equal(sql("set role anon; select string_agg(id,',' order by id) from public.site_records; reset role;"), "seed-post,seed-video");
+    assert.equal(sql("set role authenticated; select string_agg(id,',' order by id) from public.site_records; reset role;"), "seed-post,seed-video");
     assert.equal(sql("select has_table_privilege('anon','public.site_records','INSERT') or has_table_privilege('authenticated','public.site_records','UPDATE') or has_table_privilege('authenticated','public.site_records','DELETE');"), "f");
     assert.equal(sql("select has_table_privilege('anon','public.site_page_views','SELECT') or has_table_privilege('authenticated','public.site_page_views','INSERT');"), "f");
     assert.equal(sql("select has_function_privilege('anon','public.site_take_rate_limit(text,integer,integer)','EXECUTE');"), "f");

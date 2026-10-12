@@ -35,6 +35,14 @@ test("migration constrains collections, preserves IDs/dates, and defaults privat
   assert.match(sql, /site_page_view_utc_day/);
 });
 
+test("forward-only policy requires explicit boolean publication for posts and videos", async () => {
+  const sql = await readFile(new URL("../../supabase/migrations/20261013000200_site_explicit_publication.sql", import.meta.url), "utf8");
+  assert.match(sql, /alter policy site_published_content_read on public\.site_records/);
+  assert.match(sql, /collection in \('posts', 'videos'\)/);
+  assert.match(sql, /data -> 'published' = 'true'::jsonb/);
+  assert.doesNotMatch(sql, /create policy|is distinct from 'false'/i);
+});
+
 test("limiter migration uses atomic conflict update, checked inputs, expiry and service-only execution", async () => {
   const sql = await readFile(new URL("../../supabase/migrations/20261013000100_site_persistence_foundation.sql", import.meta.url), "utf8");
   assert.match(sql, /on conflict \(key_hash, window_seconds\) do update/);
