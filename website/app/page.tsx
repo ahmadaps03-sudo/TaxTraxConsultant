@@ -8,7 +8,8 @@ import TestimonialCarousel from "@/components/TestimonialCarousel";
 import { AdvisorIllustration, PhoneMockup, WorldMap, ResourceThumb } from "@/components/Illustrations";
 import { useState } from "react";
 import { faqs } from "@/lib/faq";
-import { OFFICE, waLink, mapsDirections, mapsEmbed } from "@/lib/contact";
+  import { OFFICE, waLink, mapsEmbed } from "@/lib/contact";
+  import OfficeList from "@/components/OfficeList";
 import { PLANS, FEATURED_SERVICES } from "@/lib/pricing";
 import Icon from "@/components/Icon";
 import LazyMap from "@/components/LazyMap";
@@ -363,37 +364,36 @@ export default function Home() {
           </div>
         </div>
       </section>
-
       {/* Location */}
       <section className="border-b border-line bg-cream">
         <div className="mx-auto max-w-[1200px] px-5 py-14 sm:py-20">
-          <SectionHeading title="Visit Our Office" sub={`Find us in ${OFFICE.city}. Walk in or book an appointment. Our ${OFFICE.city} head office is open 6 days a week. Remote consultations available nationwide.`} />
+          <SectionHeading title="Visit Our Offices" sub="Two offices in Islamabad plus branches in Hyderabad, Sukkur and Karachi. Walk in or book an appointment. Remote consultations available nationwide." />
           <div className="mt-12 grid gap-7 lg:grid-cols-5">
             <div className="space-y-5 lg:col-span-2">
               <div className="card-flat card-lift p-7">
-                <h3 className="font-serif text-xl text-paper">Head Office, {OFFICE.city}</h3>
+                <h3 className="font-serif text-xl text-paper">Get in touch</h3>
                 <ul className="mt-5 space-y-4 text-sm text-paper/85">
-                  <li className="flex gap-3"><Icon name="pin" size={18} className="mt-0.5 text-signal" /><span>{OFFICE.addressLines.map((l) => <span key={l} className="block">{l}</span>)}</span></li>
                   <li className="flex gap-3"><Icon name="phone" size={18} className="mt-0.5 text-signal" /><a href={`tel:${OFFICE.phoneTel}`} className="hover:text-signal">{OFFICE.phoneDisplay}</a></li>
                   <li className="flex gap-3"><Icon name="mail" size={18} className="mt-0.5 text-signal" /><a href={`mailto:${OFFICE.email}`} className="hover:text-signal">{OFFICE.email}</a></li>
                   <li className="flex gap-3"><Icon name="clock" size={18} className="mt-0.5 text-signal" /><span>{OFFICE.hours}</span></li>
                 </ul>
-                <p className="mt-5 rounded-xl bg-cream p-3 text-xs text-smoke"><b className="text-paper">Search us on Google Maps.</b> Find us by searching &ldquo;TaxTrax Consulting {OFFICE.city}&rdquo; or &ldquo;tax consultant near me {OFFICE.city}&rdquo;.</p>
-                <a href={mapsDirections} target="_blank" rel="noopener noreferrer" className="mt-5 inline-block rounded-full bg-signal px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-ember hover:shadow-lg hover:shadow-signal/30 focus-ring">Get Directions</a>
+                <p className="mt-5 rounded-xl bg-cream p-3 text-xs text-smoke"><b className="text-paper">Search us on Google Maps.</b> Find us by searching &ldquo;TaxTrax Consulting {OFFICE.city}&rdquo; or &ldquo;tax consultant near me&rdquo;.</p>
               </div>
               <div className="relative overflow-hidden rounded-3xl bg-graphite p-7 text-white">
                 <div className="bg-dots-light absolute inset-0" aria-hidden />
                 <h3 className="relative font-serif text-lg">Prefer Remote Advisory?</h3>
                 <p className="relative mt-2 text-sm text-white/70">We serve clients across all of Pakistan remotely. Send documents via WhatsApp and get your filing done without leaving home.</p>
-                <a href={waLink("Hi TaxTrax, I'd like remote advisory.")} target="_blank" rel="noopener noreferrer" className="relative mt-4 inline-block rounded-full bg-[#25D366] px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg focus-ring">WhatsApp Now</a>
+                <a href={waLink("Hi TaxTrax, I'd like remote advisory.")} target="_blank" rel="noopener noreferrer" className="relative mt-4 inline-block rounded-full bg-[#25D366] px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg">Chat on WhatsApp</a>
               </div>
             </div>
             <div className="overflow-hidden rounded-3xl border border-line bg-white shadow-xl shadow-black/5 lg:col-span-3">
-              <LazyMap title={`TaxTrax Consulting office map, ${OFFICE.city}`} src={mapsEmbed} />
+              <LazyMap title={`TaxTrax Consulting head office map, ${OFFICE.city}`} src={mapsEmbed} />
             </div>
           </div>
+          <div className="mt-12"><OfficeList /></div>
         </div>
       </section>
+
 
       {/* Closing CTA banner */}
       <section className="relative overflow-hidden bg-gradient-to-br from-signal to-crimson">
